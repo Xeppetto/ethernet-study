@@ -1,5 +1,7 @@
 # 의료 로봇 Ethernet 전환 학습 가이드
 
+v0.2
+
 ## 개요 (Overview)
 
 본 리포지토리는 **Software Engineer / Test Engineer**를 위한 Ethernet 기술 학습 자료입니다. 전통적인 제어 시스템에서 차세대 **Ethernet 기반 아키텍처**로 전환하는 과정에서 필요한 핵심 기술과 검증 방법론을 다루며, 의료 로봇(수술 로봇, 재활 로봇)을 중심 적용 사례로 활용합니다.
