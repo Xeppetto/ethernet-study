@@ -1,23 +1,218 @@
-# IEEE 802.1Qci (Ingress Policing)
+# IEEE 802.1Qci (Per-Stream Filtering and Policing)
 
 ## 개요
-네트워크에서 트래픽을 관리할 때 가장 중요한 것은 '예상치 못한 트래픽'으로부터 '중요 트래픽'을 보호하는 것입니다. IEEE 802.1Qci는 이더넷 스위치의 입력 포트(Ingress Port)에서 트래픽을 감시하고, 이상 징후가 발견되면 차단하거나 제한하는 기능을 제공하는 표준으로, 'Ingress Policing' 또는 'Traffic Filtering and Policing'이라고 불립니다. 특히 의료 로봇과 같이 안전(Safety)이 중요한 시스템에서, 특정 노드(Node)의 오작동이나 악의적인 공격(Babbling Idiot)으로부터 네트워크 전체를 보호하는 핵심 기술입니다.
+IEEE 802.1Qci는 Ethernet 스위치의 **수신 포트(Ingress)**에서 각 트래픽 스트림을 감시하고, 약속된 범위를 벗어난 트래픽을 차단하거나 마킹하는 표준입니다. "Ingress Policing" 또는 "PSFP(Per-Stream Filtering and Policing)"라고도 불립니다.
 
-### 동작 원리
-802.1Qci는 스위치 내부의 '필터(Filter)'와 '게이트(Gate)'를 사용하여 들어오는 프레임의 스트림(Stream) ID, 우선순위, 크기 등을 검사합니다.
+특히 **Babbling Idiot 방지** (오작동 노드가 네트워크를 독점하는 현상 차단)에 핵심적인 역할을 합니다.
 
-1.  **Stream Identification**: 들어오는 프레임이 어떤 흐름(Flow)에 속하는지 식별합니다. (예: MAC 주소, VLAN ID, IP 주소 등)
-2.  **Ingress Gate Control**: 특정 스트림에 대해 문(Gate)을 열거나 닫을 수 있습니다. 예를 들어, 1번 스트림은 허용하고, 2번 스트림은 차단할 수 있습니다.
-3.  **Flow Metering**: 각 스트림의 전송 속도(Rate)를 측정합니다. 만약 약속된 대역폭을 초과하여 전송한다면(Burst), 해당 프레임을 폐기하거나 우선순위를 낮춥니다.
+---
 
-### 주요 기능
-- **Babbling Idiot Protection**: 특정 노드가 소프트웨어 버그나 하드웨어 고장으로 인해 무의미한 데이터를 지속적으로 전송하여 네트워크 대역폭을 점유하는 현상을 방지합니다. 802.1Qci는 해당 노드의 트래픽이 설정된 한계를 넘으면 즉시 차단하여, 다른 정상적인 통신에 영향을 주지 않도록 격리합니다.
-- **DDoS 공격 방어**: 외부 공격자가 대량의 패킷을 보내 네트워크를 마비시키려는 시도를 무력화할 수 있습니다.
-- **잘못된 설정 감지**: 네트워크 관리자가 실수로 잘못된 설정을 하여 트래픽 루프(Loop)가 발생하거나 과도한 트래픽이 유입될 때 이를 감지하고 차단합니다.
+## 핵심 개념
 
-### 의료 로봇에서의 활용
-수술 로봇의 안전을 위해 802.1Qci는 필수적인 안전 장치입니다. 예를 들어, 로봇 팔의 관절 제어기 하나가 고장 나서 이상 신호를 계속 보낸다고 가정해 봅시다. 만약 이를 방치하면 전체 네트워크가 느려져 수술 중인 의사의 조작 명령이 지연될 수 있습니다. 802.1Qci를 적용하면, 스위치 레벨에서 문제의 제어기만 신속하게 격리(Isolation)하고, 나머지 시스템은 정상적으로 동작하도록 보장할 수 있어 환자의 안전을 확보하는 데 기여합니다.
+### Stream Identification (스트림 식별)
+들어오는 프레임을 특정 규칙에 따라 스트림으로 분류합니다.
+
+```
+분류 기준:
+  - MAC 주소 (Src/Dst)
+  - VLAN ID
+  - IPv4/IPv6 주소
+  - TCP/UDP 포트
+  - DSCP 값
+
+예: Stream 1 = (VLAN 10, Src MAC = AA:BB:CC:DD:EE:01, Dst = 브로드캐스트)
+    Stream 2 = (VLAN 20, TCP Port 30490, Dst = 192.168.1.1)
+```
+
+### PSFP 파이프라인
+
+```
+수신 프레임
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│  Stage 1: Stream Identification                      │
+│  (어떤 스트림인지 식별)                               │
+├─────────────────────────────────────────────────────┤
+│  Stage 2: Stream Filter                              │
+│  (스트림 별 필터 규칙 적용)                           │
+│  • Max SDU 크기 검사 (너무 큰 프레임 폐기)            │
+│  • 우선순위 매핑                                     │
+├─────────────────────────────────────────────────────┤
+│  Stage 3: Flow Meter (토큰 버킷)                     │
+│  (약속된 대역폭 초과 여부 판단)                       │
+│  • CIR (Committed Information Rate): 보장 대역폭    │
+│  • CBS (Committed Burst Size): 허용 최대 버스트      │
+├─────────────────────────────────────────────────────┤
+│  Stage 4: Gate Control                               │
+│  (스트림별 게이트 열림/닫힘 제어)                     │
+│  → 802.1Qbv TAS와 연동 가능                         │
+└─────────────────────────────────────────────────────┘
+    │
+    ▼
+정상 프레임 → 포워딩
+초과 프레임 → 폐기 또는 DEI 마킹 (Drop Eligible)
+```
+
+---
+
+## Flow Meter (토큰 버킷 알고리즘)
+
+```
+토큰 버킷 개념:
+  ┌─────────────────────────────────────────────────┐
+  │  버킷 용량 = CBS (Committed Burst Size)          │
+  │                                                 │
+  │  토큰 생성률 = CIR (Committed Information Rate) │
+  │                                                 │
+  │  프레임 도착 → 프레임 크기만큼 토큰 소비          │
+  │  토큰 부족 → 프레임 폐기 또는 마킹               │
+  └─────────────────────────────────────────────────┘
+
+설정 예시:
+  Stream 1 (관절 제어): CIR = 10Mbps, CBS = 1500 Byte
+  → 10Mbps를 초과하는 순간 초과 프레임 폐기
+  → 짧은 버스트(1500B)는 허용
+
+  Stream 2 (영상): CIR = 500Mbps, CBS = 64KB
+  → 카메라가 폭발적으로 전송 시 64KB까지 허용
+  → 이후 500Mbps로 제한
+```
+
+---
+
+## Babbling Idiot 방어
+
+```
+정상 동작:
+  Joint ECU #1 ── 제어 패킷 10Mbps ──► TSN Switch ──► Main ECU
+
+Babbling Idiot 발생:
+  Joint ECU #1 (고장!) ── 패킷 1000Mbps (최대 링크 속도) ──► TSN Switch
+
+802.1Qci 없는 경우:
+  전체 네트워크 포화 → 다른 ECU 통신 불가 → 수술 중 시스템 마비
+
+802.1Qci 적용:
+  TSN Switch Ingress Policing:
+    Stream: ECU #1 (MAC 기준 식별)
+    CIR: 10Mbps (설정값)
+    조치: 10Mbps 초과 즉시 폐기
+  결과: ECU #1 고장에도 다른 ECU 정상 통신 유지
+```
+
+---
+
+## Linux에서 PSFP 설정 (tc 사용)
+
+```bash
+# 스트림 필터 설정 (최신 Linux 커널 5.14+)
+# Stream 1: MAC 기반 필터, 최대 대역폭 10Mbps
+
+# 1. Stream 필터 생성
+tc filter add dev eth0 ingress \
+    protocol 802.1Q \
+    flower \
+    vlan_id 10 \
+    src_mac aa:bb:cc:dd:ee:01 \
+    action gate \
+        base-time 1600000000000000000 \
+        sched-entry OPEN 100000 10485760 9000 \
+        sched-entry CLOSE 900000 -1 -1
+
+# 2. 대역폭 폴리싱 (토큰 버킷)
+tc filter add dev eth0 ingress \
+    protocol ip \
+    flower \
+    ip_proto tcp \
+    dst_port 30490 \
+    action police \
+        rate 10mbit \
+        burst 15k \
+        drop
+
+# 현재 필터 확인
+tc filter show dev eth0 ingress
+
+# 폐기 통계 확인
+tc -s filter show dev eth0 ingress | grep dropped
+```
+
+---
+
+## 스트림 Gate Control (802.1Qbv와 연동)
+
+```
+802.1Qci Gate를 802.1Qbv TAS와 함께 사용:
+
+TAS GCL:
+  T=0~100µs: TC7 OPEN (제어 트래픽)
+  T=100~1000µs: TC0 OPEN (BE 트래픽)
+
+PSFP Gate (Stream 1 = 관절 제어 스트림):
+  T=0~100µs: Gate OPEN
+  T=100µs~: Gate CLOSED
+
+결과: 관절 제어 스트림은 TAS + PSFP 이중 보호
+  - TAS: 큐 수준에서 TC7 전용 슬롯
+  - PSFP: 스트림 수준에서 특정 스트림만 통과
+```
+
+---
+
+## 모니터링: 이상 감지
+
+```bash
+# Wireshark로 폐기된 패킷 분석
+# (실제로는 스위치 관리 인터페이스 사용)
+
+# 스위치 PSFP 통계 조회 (NETCONF/YANG 또는 관리 콘솔)
+# Stream 1 폐기 카운터:
+# ingress_frames_received: 100000
+# ingress_frames_passed:   99850
+# ingress_frames_dropped:  150  ← 150개 폐기
+# 이상 발생 시 알람 트리거
+
+# tc 통계 (Linux 브리지)
+tc -s qdisc show dev eth0 | grep -A5 "ingress"
+```
+
+---
+
+## 의료 로봇 PSFP 정책 예시
+
+```
+스트림 분류 및 정책:
+
+Stream 1 (안전 제어):
+  식별: VLAN=10, Src=Safety ECU MAC
+  CIR: 5 Mbps, CBS: 9000 Byte
+  Gate: TAS TC7 슬롯에서만 OPEN
+  초과 시: 즉시 폐기 + 알람
+
+Stream 2 (관절 제어):
+  식별: VLAN=20, Src=Joint ECU MAC 그룹
+  CIR: 50 Mbps, CBS: 64 KB
+  Gate: TAS TC5 슬롯에서만 OPEN
+  초과 시: DEI 마킹 (폐기 후보)
+
+Stream 3 (영상):
+  식별: VLAN=30, Src=Camera MAC
+  CIR: 400 Mbps, CBS: 1 MB
+  Gate: 항상 OPEN (Best Effort 큐 사용)
+  초과 시: 폐기 (영상 일부 손실 허용)
+
+Stream 4 (진단 DoIP):
+  식별: VLAN=40, TCP Port 13400
+  CIR: 100 Mbps, CBS: 1 MB
+  Gate: 항상 OPEN
+  초과 시: 폐기
+```
+
+---
 
 ## Reference
 - [IEEE 802.1Qci-2017 - Per-Stream Filtering and Policing](https://standards.ieee.org/ieee/802.1Qci/6045/)
-- [TSN Task Group - Ingress Policing](https://1.ieee802.org/tsn/802-1qci/)
+- [TSN Task Group - 802.1Qci](https://1.ieee802.org/tsn/802-1qci/)
+- [Linux tc-flower 필터](https://man7.org/linux/man-pages/man8/tc-flower.8.html)
+- [Linux tc-police 폴리서](https://man7.org/linux/man-pages/man8/tc-police.8.html)

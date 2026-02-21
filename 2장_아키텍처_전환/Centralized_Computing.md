@@ -1,30 +1,199 @@
 # 중앙집중형 컴퓨팅 (HPC / HPVC)
 
 ## 개요
-차량 및 의료 로봇 시스템이 복잡해지면서, 기존의 수십 개의 소형 ECU(Electronic Control Unit)들이 각자 맡은 기능을 수행하던 분산 구조에서, 고성능 컴퓨터 한두 대가 모든 연산을 통합하여 처리하는 '중앙집중형 아키텍처(Centralized Architecture)'로 변화하고 있습니다. 이를 가능하게 하는 핵심 기술이 바로 HPC(High Performance Computing) 또는 HPVC(High Performance Vehicle Computer)입니다.
+차량 및 의료 로봇 시스템이 복잡해지면서 수십 개의 소형 ECU들이 분산 처리하던 구조에서, 고성능 컴퓨터(HPC, High Performance Computer) 한두 대가 모든 연산을 통합 처리하는 방식으로 진화하고 있습니다. 이를 통해 AI 기능 통합, OTA 업데이트, 소프트웨어 중심 설계가 가능해집니다.
 
-### 중앙집중형 아키텍처의 필요성
-과거에는 각 기능(엔진 제어, 브레이크 제어, 인포테인먼트 등)마다 별도의 ECU가 존재했습니다. 하지만 자율주행, AI, V2X(Vehicle to Everything) 통신 등 고도화된 기능이 요구되면서, 개별 ECU의 성능 한계와 복잡한 통신 구조가 문제가 되었습니다. 이에 따라, 고성능 프로세서(AP, GPU, NPU 등)를 탑재한 중앙 컴퓨터가 전체 시스템을 통합 제어하는 방식이 도입되었습니다.
+---
 
-#### 주요 특징
-- **고성능 연산**: 수십 TOPS(Tera Operations Per Second) 이상의 연산 능력을 가진 프로세서를 사용하여, 복잡한 알고리즘과 AI 모델을 실시간으로 처리합니다.
-- **소프트웨어 중심**: 하드웨어에 종속되지 않고 소프트웨어 업데이트(OTA)를 통해 기능을 개선하거나 추가할 수 있습니다. (SDV, Software Defined Vehicle)
-- **가상화 기술**: 하나의 강력한 하드웨어 위에서 여러 운영체제(OS)나 애플리케이션을 동시에 실행하기 위해 Hypervisor 기술이 필수적으로 사용됩니다. (예: 실시간 제어용 RTOS와 사용자 인터페이스용 Linux/Android 동시 구동)
-- **초고속 통신**: 대용량 데이터를 처리하기 위해 PCIe, 10Gbps Ethernet 등 고속 인터페이스를 지원합니다.
+## 아키텍처 발전 단계
 
-### HPC / HPVC의 구성 요소
-- **AP (Application Processor)**: 고성능 CPU 코어를 내장하여 OS 및 애플리케이션 실행을 담당합니다.
-- **GPU / NPU**: 딥러닝 추론, 영상 처리 등 병렬 연산 가속을 담당합니다.
-- **Safety Controller**: 기능 안전(ISO 26262)을 만족시키기 위해 별도의 MCU(Micro Controller Unit)가 탑재되어 시스템 상태를 감시하고 비상 상황 시 안전하게 제어권을 가져옵니다.
-- **Ethernet Switch**: 외부 센서 및 Zone Controller들과의 통신을 위한 고속 스위치가 내장되기도 합니다.
+```
+1세대: 분산 ECU (2000년대)
+  ECU #1 ─CAN─ ECU #2 ─CAN─ ECU #3 ─CAN─ ... ECU #100
+  각 ECU: 단일 기능, 4~32MHz MCU
 
-### 의료 로봇 분야 적용
-의료 로봇, 특히 수술 로봇이나 AI 진단 로봇에서는 실시간 영상 분석과 정밀 제어가 동시에 이루어져야 합니다. HPC 기반의 중앙집중형 아키텍처를 도입하면 다음과 같은 이점이 있습니다.
+2세대: Domain Controller (2010년대)
+  파워트레인 DC ─Ethernet─ 섀시 DC ─Ethernet─ 인포테인먼트 DC
+  각 DC: 다기능, 수백MHz MCU
 
-- **AI 기반 기능 구현**: 수술 중 실시간 장기 인식, 출혈 감지, 경로 안내 등 고성능 AI 기능을 로봇 자체(Edge)에서 처리할 수 있습니다.
-- **데이터 융합 (Sensor Fusion)**: 여러 센서(카메라, 레이더, 힘 센서 등) 데이터를 한곳에서 모아 처리하므로 더 정확하고 빠른 판단이 가능합니다.
-- **원격 제어 및 클라우드 연동**: 5G/6G 통신 모듈과 결합하여 원격 수술이나 클라우드 기반 데이터 분석 서비스를 제공할 수 있습니다.
+3세대: 중앙집중형 HPC (2020년대~)
+  Zone ECU ─Ethernet─ HPC ─Ethernet─ Zone ECU
+               │
+              Cloud
+  HPC: AI/GPU 수십 TOPS, 멀티코어 CPU
+```
+
+---
+
+## HPC 내부 구성 요소
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    HPC (High Performance Computer)            │
+│                                                              │
+│  ┌────────────┐  ┌────────────┐  ┌─────────────────────────┐ │
+│  │  AP 클러스터 │  │  AI 가속기 │  │  Safety MCU             │ │
+│  │  (CPU)     │  │  (GPU/NPU) │  │  (ASIL-D 인증)          │ │
+│  │  멀티코어   │  │  ~100 TOPS │  │  시스템 감시             │ │
+│  │  Linux/RTOS│  │            │  │  비상 제어               │ │
+│  └────────────┘  └────────────┘  └─────────────────────────┘ │
+│                                                              │
+│  ┌────────────┐  ┌────────────┐  ┌─────────────────────────┐ │
+│  │  Hypervisor │  │  Ethernet  │  │  HSM                    │ │
+│  │  (가상화)  │  │  Switch    │  │  (Hardware Security)    │ │
+│  │  RTOS 격리 │  │  TSN 지원  │  │  SecureBoot, 암호화     │ │
+│  └────────────┘  └────────────┘  └─────────────────────────┘ │
+│                                                              │
+│  인터페이스: PCIe Gen4, 10GbE, USB3, CAN FD                  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 하이퍼바이저(Hypervisor)와 가상화
+
+하나의 HPC에서 안전 제어(RTOS)와 사용자 서비스(Linux)를 동시에 격리 실행합니다.
+
+```
+┌─────────────────────────────────────────────────┐
+│  HPC 하드웨어 (멀티코어 ARM/x86)                 │
+├─────────────────────────────────────────────────┤
+│  Type-1 Hypervisor (예: Xen, QNX Hypervisor)   │
+├────────────────────┬────────────────────────────┤
+│  Guest OS #1       │  Guest OS #2               │
+│  RTOS (QNX/FreeRTOS│  Linux (Ubuntu/Yocto)      │
+│  안전 제어          │  인포테인먼트, AI, OTA      │
+│  실시간 응답 < 1ms  │  일반 애플리케이션          │
+│  ASIL-B/D 인증     │  비안전 기능               │
+└────────────────────┴────────────────────────────┘
+
+핵심: 두 Guest OS는 메모리/인터럽트 완전 격리
+→ Linux의 버그/크래시가 RTOS 제어에 영향 없음
+```
+
+### 가상화 대안: 컨테이너
+```
+Linux 기반 HPC (안전 기능 불필요한 부분):
+  ┌─────────────────────────────────────┐
+  │  Linux Kernel                       │
+  ├────────────────────────────────────-┤
+  │ Container Runtime (Docker/Podman)  │
+  ├─────────────┬──────────────────────┤
+  │ Container A │ Container B          │
+  │ (AI 추론)   │ (OTA 관리)           │
+  │ Python/     │ Node.js              │
+  │ TensorFlow  │                      │
+  └─────────────┴──────────────────────┘
+
+컨테이너 장점: 빠른 배포, 격리, CI/CD 통합
+단점: 하이퍼바이저 대비 격리 수준 낮음 (실시간성 미보장)
+```
+
+---
+
+## AI/머신러닝 통합
+
+HPC에 탑재된 NPU/GPU로 엣지 AI 추론을 실행합니다.
+
+```
+센서 데이터
+(카메라, 라이다, 레이더)
+      │
+      ▼
+┌─────────────────────────────────────────────┐
+│  HPC NPU/GPU                                │
+│                                             │
+│  ① 객체 인식 (YOLOv8 등)        ~20ms 추론  │
+│  ② 공간 인식 (Depth Estimation)             │
+│  ③ 이상 감지 (Anomaly Detection)            │
+│  ④ 동작 계획 (Motion Planning)             │
+│                                             │
+│  성능 요구: > 30 TOPS (자율주행 기준)         │
+└─────────────────────────────────────────────┘
+      │
+      ▼
+Zone ECU → 모터/액추에이터 제어
+```
+
+**의료 로봇 AI 활용 사례:**
+- 수술 중 실시간 조직 인식 (종양 vs 정상 조직 경계)
+- 수술 도구 위치 추적 및 안전 경계 모니터링
+- 출혈 감지 및 즉각 알림
+- 로봇 암 충돌 예측 및 회피
+
+---
+
+## 중앙집중형 HPC의 도전 과제
+
+### 기능 안전 (Functional Safety)
+```
+분산 ECU 시대:
+  ECU 하나 고장 → 해당 기능만 영향
+  ASIL-D 달성: ECU 내부 이중화
+
+HPC 시대:
+  HPC 고장 → 모든 기능 영향 (Single Point of Failure)
+
+해결 방법:
+  ① HPC 이중화 (Dual HPC 구성)
+  ② Safety MCU 별도 탑재 (독립 Watchdog)
+  ③ Fail-Safe 모드: Safety MCU가 최소 기능 유지
+
+  HPC #1 (주) ──────────────────────► Zone ECU
+                    │
+  HPC #2 (예비) ───┘ (Failover 수백ms 내)
+```
+
+### 열 관리
+```
+소비 전력 비교:
+  기존 ECU 100개 × 평균 2W = 200W
+  HPC 1개: 50~200W (동일하거나 적은 전력)
+
+  하지만 HPC는 한 곳에 집중 → 냉각 설계 중요
+
+냉각 방법:
+  - 히트싱크 + 팬 냉각 (공냉)
+  - 액랭 (고성능 HPC)
+  - 열전달 패드 + 차량 냉각 시스템 연계
+```
+
+---
+
+## 의료 로봇 HPC 구성 예시
+
+```
+수술 로봇 HPC 구성
+
+┌─────────────────────────────────────────────────────┐
+│                    Main HPC                          │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ NVIDIA Orin / Qualcomm SA8295               │   │
+│  │ CPU: 12코어 ARM A78AE                        │   │
+│  │ GPU/DLA: 275 TOPS                            │   │
+│  │ Memory: 64GB LPDDR5                          │   │
+│  └──────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ Safety MCU (TI TDA4VM / Renesas R-Car S4)   │   │
+│  │ ASIL-D 인증, 독립 전원, BIST 자가진단        │   │
+│  └──────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ Ethernet Switch (TSN)                        │   │
+│  │ 포트: 8× 1GbE Zone, 2× 10GbE Cloud/외부     │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+
+소프트웨어:
+  - Hypervisor: QNX Hypervisor 또는 ACRN
+  - 안전 OS: QNX Neutrino RTOS
+  - 비안전 OS: Ubuntu 22.04 LTS / Yocto
+  - 미들웨어: ROS 2 + AUTOSAR Adaptive
+```
+
+---
 
 ## Reference
-- [NVIDIA DRIVE - Autonomous Vehicle Development Platform](https://www.nvidia.com/en-us/self-driving-cars/drive-platform/)
+- [NVIDIA DRIVE Orin - Autonomous Vehicle SoC](https://www.nvidia.com/en-us/self-driving-cars/drive-platform/)
 - [Qualcomm Snapdragon Digital Chassis](https://www.qualcomm.com/products/automotive/snapdragon-digital-chassis)
+- [ACRN Hypervisor - Open Source for Automotive](https://projectacrn.org/)
+- [NXP S32G - Vehicle Network Processor](https://www.nxp.com/products/processors-and-microcontrollers/arm-processors/s32g-vehicle-network-processors:S32G)

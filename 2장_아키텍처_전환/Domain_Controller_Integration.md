@@ -1,31 +1,190 @@
 # Domain Controller 통합
 
 ## 개요
-기존 차량 및 로봇 시스템은 수십~수백 개의 개별 ECU(Electronic Control Unit)가 각자의 기능을 수행하는 분산 아키텍처였습니다. 하지만 기능이 고도화됨에 따라 배선 복잡도와 통신 부하가 증가하여, 유사한 기능을 묶어 하나의 고성능 제어기인 'Domain Controller'로 통합하는 추세입니다. 이는 중앙집중형 아키텍처(HPC)로 가는 과도기적인 단계이자, 현실적인 최적화 방안입니다.
+기존의 수십~수백 개 개별 ECU 분산 아키텍처에서, 유사한 기능을 묶어 고성능 Domain Controller로 통합하는 추세입니다. 이는 완전한 중앙집중형 HPC로 가는 과도기적 단계이자, 현실적이고 실용적인 최적화 방안입니다.
 
-### Domain Controller의 개념
-Domain Controller는 특정 기능 도메인(Domain) 내의 여러 ECU를 통합 관리하는 제어기입니다. 예를 들어, 파워트레인 도메인, 인포테인먼트 도메인, 바디 도메인 등으로 나누어 각 도메인마다 하나의 강력한 MCU나 AP를 탑재한 컨트롤러를 배치합니다.
+---
 
-#### 주요 특징
-- **기능 통합**: 여러 개의 작은 ECU 기능을 하나의 Domain Controller에서 소프트웨어적으로 구현합니다. (예: 엔진 제어, 변속기 제어, 배터리 관리 등을 파워트레인 도메인 컨트롤러 하나로 통합)
-- **배선 단순화**: 각 ECU 간의 복잡한 배선을 줄이고, 도메인 간 통신은 고속 백본망(Ethernet)을 통해 이루어집니다.
-- **성능 향상**: 고성능 프로세서를 사용하여 복잡한 연산을 빠르게 처리하고, 데이터 공유를 원활하게 합니다.
-- **확장성**: 새로운 기능을 추가할 때 하드웨어를 변경하지 않고 소프트웨어 업데이트만으로 가능합니다.
+## 아키텍처 진화 단계
 
-### 의료 로봇 분야 적용 (Medical Domain Controller)
-의료 로봇 시스템에서도 유사하게 기능별로 제어기를 통합할 수 있습니다.
-1.  **Motion Control Domain**: 로봇 팔의 관절 모터 제어, 힘 센서 처리, 역기구학 연산 등을 담당합니다.
-2.  **Vision Domain**: 내시경 카메라 영상 처리, 3D 재구성, AI 병변 인식 등을 담당합니다.
-3.  **HMI (Human Machine Interface) Domain**: 의사용 콘솔, 터치스크린 UI, 햅틱 피드백 등을 담당합니다.
-4.  **Safety Domain**: 비상 정지, 시스템 상태 감시, 이중화 제어 등 안전 관련 기능을 전담합니다.
+```
+1단계: 분산 ECU (2000년대)
+  엔진 ECU, 변속기 ECU, ABS ECU, 에어백 ECU ... (각각 독립)
+  통신: CAN 버스 (2Mbps)
 
-### 기술적 과제
-Domain Controller 통합을 위해서는 다음과 같은 기술적 과제를 해결해야 합니다.
-- **실시간성 보장**: 여러 기능을 하나의 프로세서에서 동시에 수행하므로, 실시간 운영체제(RTOS)와 멀티코어 프로세싱 기술이 중요합니다.
-- **열 관리**: 고성능 프로세서 사용으로 인한 발열 문제를 해결해야 합니다.
-- **보안 강화**: 외부 네트워크와 연결되는 도메인 컨트롤러는 해킹 위험에 노출될 수 있으므로, 하드웨어 보안 모듈(HSM)이나 시큐어 부팅 기술을 적용해야 합니다.
-- **표준화**: 서로 다른 제조사의 부품을 통합하기 위해 AUTOSAR나 ROS 2와 같은 표준 소프트웨어 플랫폼을 사용해야 합니다.
+2단계: Domain Controller 통합 (2015~현재)
+  파워트레인 DC + 샤시 DC + ADAS DC + 인포테인먼트 DC
+  통신: CAN (내부) + Ethernet 100BASE-T1 (도메인 간)
+
+3단계: 완전 중앙집중형 HPC (2025년~)
+  1~2개 HPC + Zone ECU
+  통신: TSN Ethernet 백본 (1Gbps+)
+```
+
+---
+
+## Domain Controller 구성 예시
+
+### 의료 로봇 Domain Controller 구조
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     의료 로봇 시스템                          │
+│                                                             │
+│  ┌──────────────────┐  Ethernet  ┌──────────────────────┐   │
+│  │ Motion Control DC │◄──────────►│  Vision Domain DC    │   │
+│  │                  │  (1Gbps)   │                      │   │
+│  │ • 관절 모터 제어  │            │ • 내시경 카메라 처리  │   │
+│  │ • 역기구학 연산   │            │ • 3D 재구성           │   │
+│  │ • 힘/토크 제어    │            │ • AI 병변 인식        │   │
+│  │ • 충돌 감지       │            │ • 조명 제어           │   │
+│  └──────────────────┘            └──────────────────────┘   │
+│           │                              │                   │
+│           └─────── Ethernet ─────────────┘                   │
+│                         │                                    │
+│  ┌──────────────────┐  Ethernet  ┌──────────────────────┐   │
+│  │   HMI Domain DC   │◄──────────►│   Safety Domain DC   │   │
+│  │                  │            │                      │   │
+│  │ • 의사용 콘솔     │            │ • 비상 정지 (E-Stop)  │   │
+│  │ • 햅틱 피드백     │            │ • 시스템 상태 감시    │   │
+│  │ • 수술 영상 표시  │            │ • 이중화 제어         │   │
+│  │ • UI 관리         │            │ • ASIL-D 인증        │   │
+│  └──────────────────┘            └──────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Domain Controller 내부 구조
+
+```
+Domain Controller 하드웨어:
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│  ┌────────────┐  ┌────────────┐  ┌──────────────────┐   │
+│  │ AP (CPU)   │  │ Safety MCU │  │ Memory            │   │
+│  │ 멀티코어   │  │ ASIL-B/D   │  │ LPDDR4/5          │   │
+│  │800MHz~4GHz │  │ Watchdog   │  │ 4~16 GB           │   │
+│  └────────────┘  └────────────┘  └──────────────────┘   │
+│                                                          │
+│  ┌────────────┐  ┌────────────┐  ┌──────────────────┐   │
+│  │ CAN FD     │  │ Ethernet   │  │ HSM               │   │
+│  │ 인터페이스  │  │ PHY        │  │ (보안 모듈)       │   │
+│  │ 4~8채널    │  │ 100BASE-T1 │  │ SecureBoot        │   │
+│  └────────────┘  └────────────┘  └──────────────────┘   │
+│                                                          │
+│  스토리지: eMMC 32~128GB (OS + 데이터)                   │
+└──────────────────────────────────────────────────────────┘
+
+소프트웨어 스택:
+┌──────────────────────────────────────────────────────────┐
+│ Application: 도메인별 제어 알고리즘, AI 모델              │
+├──────────────────────────────────────────────────────────┤
+│ Middleware: AUTOSAR Adaptive / ROS 2                      │
+├──────────────────────────────────────────────────────────┤
+│ OS: QNX / Linux (Yocto)                                  │
+├──────────────────────────────────────────────────────────┤
+│ BSP: 드라이버 (CAN, Ethernet TSN, GPIO, I2C, SPI)        │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 실시간성 보장 전략
+
+Domain Controller는 여러 기능을 하나의 프로세서에서 처리하므로 실시간성 관리가 핵심입니다.
+
+### CPU 코어 분리 (Core Isolation)
+```
+멀티코어 프로세서 (8코어 예시):
+  Core 0, 1: Safety MCU 통신 전용 (고우선순위, 인터럽트 전용)
+  Core 2, 3: 실시간 제어 태스크 (QNX RTOS, 1ms 주기)
+  Core 4, 5: AI 추론 / 영상 처리 (Linux, 일반 스케줄링)
+  Core 6, 7: OS 커널 + 드라이버 (Linux)
+
+CPU Affinity 설정:
+  taskset -c 2,3 ./realtime_control_task
+  chrt -f 90 ./realtime_control_task  # FIFO 스케줄링, 우선순위 90
+```
+
+### 메모리 격리
+```
+IOMMU: DMA 접근 격리 → 버그가 있는 드라이버의 메모리 침범 방지
+SMMU: ARM 기반 시스템에서의 동등한 기술
+
+실시간 태스크용 메모리 락:
+  mlockall(MCL_CURRENT | MCL_FUTURE);  // 페이지 폴트 방지
+```
+
+---
+
+## 도메인 간 통신 프로토콜
+
+```
+Motion Control DC ◄──── 제어 명령 (SOME/IP, UDP) ──────► HMI DC
+                   ◄──── 상태 데이터 (DDS) ─────────────►
+                   ◄──── 안전 신호 (SOME/IP, TCP) ────────► Safety DC
+
+Ethernet 백본 트래픽 분류:
+  VLAN 10 (안전): Safety DC ↔ 모든 DC
+    PCP=7, TAS 스케줄링, 지연 < 1ms
+  VLAN 20 (제어): Motion DC ↔ HMI DC
+    PCP=5, CBS 대역폭 보장
+  VLAN 30 (영상): Vision DC ↔ HMI DC
+    PCP=3, 대역폭 300Mbps 이상
+  VLAN 40 (진단): 진단 PC ↔ 모든 DC
+    PCP=0, Best Effort
+```
+
+---
+
+## 기술적 과제와 해결 방안
+
+### 과제 1: 단일 실패 지점 (Single Point of Failure)
+```
+문제: Domain Controller 하나 고장 시 도메인 전체 영향
+
+해결:
+  ① 이중화 (Redundancy): 주 DC + 예비 DC, 자동 절체
+  ② Safety MCU: DC 고장 감지 후 안전 상태로 전환
+  ③ Watchdog: DC 비정상 응답 시 시스템 재시작
+```
+
+### 과제 2: 소프트웨어 복잡도
+```
+문제: 여러 기능 통합 → 코드 복잡도 증가, 인터페이스 문제
+
+해결:
+  AUTOSAR Adaptive: 표준화된 서비스 인터페이스
+  모듈화 설계: 각 기능을 독립 서비스로 구현
+  형식 검증: 인터페이스 계약(Contract) 기반 개발
+```
+
+### 과제 3: 열 관리
+```
+문제: 고성능 AP의 발열 → 신뢰성 저하, 성능 스로틀링
+
+해결:
+  방열판 설계, 서멀 패드, 능동 냉각
+  동적 전압/주파수 스케일링 (DVFS)
+  열 이벤트 발생 시 성능 제한 정책 수립
+```
+
+---
+
+## 주요 Domain Controller 제품 예시
+
+| 제품 | 제조사 | 특징 | 대상 |
+|------|--------|------|------|
+| S32G | NXP | 차량 네트워크 특화, TSN, ASIL-D | Zone/Domain ECU |
+| TDA4VM | Texas Instruments | Jacinto 7, ASIL-D, 8 TOPS | ADAS DC |
+| R-Car S4 | Renesas | 12 TOPS, SoC 통합 | Gateway/DC |
+| Drive Orin | NVIDIA | 254 TOPS, AI 특화 | HPC/ADAS |
+| SA8295P | Qualcomm | 차량 인포테인먼트, AI | Cockpit DC |
+
+---
 
 ## Reference
-- [AUTOSAR - Adaptive Platform](https://www.autosar.org/standards/adaptive-platform/)
-- [NXP - Domain Controller](https://www.nxp.com/applications/automotive/domain-controller:DOMAIN-CONTROLLER)
+- [AUTOSAR Adaptive Platform](https://www.autosar.org/standards/adaptive-platform/)
+- [NXP S32G Vehicle Network Processors](https://www.nxp.com/products/processors-and-microcontrollers/arm-processors/s32g-vehicle-network-processors:S32G)
+- [TI TDA4VM - Jacinto 7](https://www.ti.com/product/TDA4VM)
+- [Renesas R-Car Series](https://www.renesas.com/en/products/automotive-products/automotive-system-chips-socs/r-car)

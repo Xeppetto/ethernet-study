@@ -1,27 +1,254 @@
 # MQTT (Message Queuing Telemetry Transport)
 
 ## 개요
-MQTT는 IoT(Internet of Things) 및 M2M(Machine-to-Machine) 통신을 위해 설계된 경량(Lightweight) 메시징 프로토콜입니다. 발행/구독(Publish/Subscribe) 패턴을 따르며, TCP/IP 위에서 동작합니다. 네트워크 대역폭이 제한되거나 불안정한 환경(예: 3G/4G, 저속 위성 통신)에서도 안정적으로 데이터를 주고받을 수 있도록 최적화되어 있습니다.
+MQTT는 IoT 환경을 위한 경량 발행/구독(Pub/Sub) 메시징 프로토콜입니다(OASIS 표준). 최소 2 Byte 헤더, TCP 기반, 중앙 브로커 아키텍처가 특징입니다. 의료 로봇의 **클라우드 연동, 원격 모니터링, 알림 시스템**에 적합하며, 실시간 로컬 제어에는 SOME/IP나 DDS를 사용하고 MQTT는 클라우드 레이어에 활용합니다.
 
-### MQTT의 핵심 특징
-1.  **경량 헤더 (Lightweight Header)**: 최소 2바이트의 헤더를 사용하여 오버헤드가 매우 적습니다.
-2.  **Topic 기반 라우팅**: 클라이언트(Publisher)는 특정 주제(Topic)에 메시지를 발행하고, 다른 클라이언트(Subscriber)는 관심 있는 주제를 구독합니다. 브로커(Broker)가 이들 사이의 메시지 전달을 중개합니다.
-3.  **QoS (Quality of Service) 레벨**: 메시지 전송 품질을 세 단계로 조절할 수 있습니다.
-    -   Level 0 (At most once): "보내고 잊기(Fire and Forget)", 손실 가능성 있음.
-    -   Level 1 (At least once): 최소 한 번은 전달됨을 보장, 중복 수신 가능성 있음.
-    -   Level 2 (Exactly once): 정확히 한 번만 전달됨을 보장, 오버헤드 큼.
-4.  **Last Will and Testament (LWT)**: 클라이언트가 비정상적으로 연결이 끊어졌을 때, 브로커가 미리 지정된 유언(Will) 메시지를 구독자들에게 대신 전송해 줍니다. (예: "Device Offline")
+---
 
-### 의료 로봇 분야 활용
-의료 로봇은 수술 중에는 고속 이더넷이나 TSN과 같은 실시간 통신이 필요하지만, 로봇의 상태 모니터링이나 로그 데이터 전송과 같은 비실시간 작업에는 MQTT가 효과적일 수 있습니다.
+## MQTT 아키텍처
 
--   **원격 모니터링**: 수술 로봇이 전 세계 병원에 설치되어 있을 때, 각 로봇의 가동 현황, 오류 로그, 소모품 잔량 등을 중앙 관제 센터로 전송하는 데 적합합니다.
--   **클라우드 연동**: AWS IoT Core나 Azure IoT Hub와 같은 클라우드 서비스와 쉽게 연동되어 빅데이터 분석 및 AI 모델 학습에 필요한 데이터를 수집할 수 있습니다.
--   **알림 시스템**: 로봇에 이상 징후가 감지되었을 때, 담당 엔지니어의 스마트폰 앱으로 즉시 푸시 알림을 보내는 기능을 구현하기 쉽습니다.
+```
+┌─────────────────────────────────────────────────────────────┐
+│  MQTT Broker (예: Mosquitto, EMQX, HiveMQ, AWS IoT Core)   │
+│  - 메시지 라우팅 (토픽 기반)                                  │
+│  - QoS 보장                                                  │
+│  - 세션 관리 / 클린 세션                                      │
+│  - 인증/인가 (TLS + Username/Password)                       │
+└─────┬────────────────────────────┬──────────────────────────┘
+      │                            │
+Publisher                      Subscriber
+(Robot ECU)                    (클라우드, 모니터링 PC)
+  Topic: robot/joint/status        Topic: robot/joint/status
+  QoS: 1                           QoS: 1
+```
 
-### 고려사항
-MQTT는 중앙 브로커(Broker)를 거쳐 통신하므로, 실시간성이 중요한 제어 명령(Control Loop)에는 적합하지 않습니다. 따라서 제어 루프는 실시간 Ethernet/TSN을 사용하고, 모니터링 및 클라우드 통신은 MQTT를 사용하는 이원화된 아키텍처가 권장됩니다.
+---
+
+## MQTT 패킷 구조
+
+```
+MQTT Fixed Header (최소 2 Byte):
+┌────────────────────────────────┬────────────────────────────┐
+│  Packet Type (4b) + Flags (4b) │  Remaining Length (1~4B)   │
+└────────────────────────────────┴────────────────────────────┘
+
+주요 패킷 타입:
+  0x10: CONNECT
+  0x20: CONNACK (연결 응답)
+  0x30: PUBLISH (데이터 발행)
+  0x40: PUBACK (QoS 1 ACK)
+  0x80: SUBSCRIBE (구독 요청)
+  0x90: SUBACK (구독 응답)
+  0xC0: PINGREQ (연결 유지)
+  0xE0: DISCONNECT
+```
+
+---
+
+## QoS (Quality of Service) 레벨
+
+```
+QoS 0: At Most Once (최대 한 번)
+  Publisher → Broker → Subscriber
+  재전송 없음, 손실 가능
+  최저 오버헤드, 실시간 센서 스트리밍 적합
+
+QoS 1: At Least Once (최소 한 번)
+  Publisher → Broker: PUBLISH
+  Broker → Publisher: PUBACK
+  Subscriber → Broker: PUBACK
+  중복 수신 가능 (수신 측에서 중복 처리 필요)
+  대부분의 알림/상태 전송에 적합
+
+QoS 2: Exactly Once (정확히 한 번)
+  4-way Handshake (PUBLISH → PUBREC → PUBREL → PUBCOMP)
+  중복 없음, 가장 높은 오버헤드
+  중요한 명령/설정 변경에 적합
+```
+
+---
+
+## 토픽 설계
+
+```
+MQTT 토픽 계층 구조 (의료 로봇):
+
+robot/{robot_id}/joint/{joint_id}/position   → 조인트 위치
+robot/{robot_id}/joint/{joint_id}/velocity   → 조인트 속도
+robot/{robot_id}/status                      → 전체 상태
+robot/{robot_id}/error                       → 오류 알림
+robot/{robot_id}/diagnostics/dtc             → DTC 목록
+robot/{robot_id}/ota/progress                → OTA 진행률
+hospital/{hospital_id}/robot/+/status        → 병원 내 모든 로봇 상태
+
+와일드카드:
+  +: 단일 레벨 (예: robot/+/status = 모든 로봇의 상태)
+  #: 다중 레벨 (예: robot/R001/# = R001 로봇의 모든 데이터)
+```
+
+---
+
+## Python MQTT 예시 (paho-mqtt)
+
+### Publisher (로봇 → 클라우드)
+```python
+import paho.mqtt.client as mqtt
+import json
+import time
+import ssl
+
+BROKER_HOST = 'iot.hospital.com'
+BROKER_PORT = 8883  # TLS 포트
+ROBOT_ID = 'R001'
+CA_CERT = '/certs/ca.crt'
+CLIENT_CERT = '/certs/robot.crt'
+CLIENT_KEY = '/certs/robot.key'
+
+def create_client():
+    client = mqtt.Client(client_id=f'robot_{ROBOT_ID}',
+                         protocol=mqtt.MQTTv5)
+
+    # TLS 설정 (상호 인증)
+    client.tls_set(
+        ca_certs=CA_CERT,
+        certfile=CLIENT_CERT,
+        keyfile=CLIENT_KEY,
+        tls_version=ssl.PROTOCOL_TLS_CLIENT
+    )
+
+    # Last Will Testament (로봇 비정상 종료 시 발행)
+    client.will_set(
+        topic=f'robot/{ROBOT_ID}/status',
+        payload=json.dumps({'online': False, 'reason': 'unexpected_disconnect'}),
+        qos=1, retain=True
+    )
+
+    client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
+    return client
+
+client = create_client()
+client.loop_start()
+
+# 로봇 상태 주기적 발행
+while True:
+    robot_status = {
+        'timestamp': time.time(),
+        'joint_positions': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        'temperature': 42.3,
+        'battery_voltage': 24.1,
+        'error_code': 0
+    }
+
+    client.publish(
+        topic=f'robot/{ROBOT_ID}/status',
+        payload=json.dumps(robot_status),
+        qos=1,
+        retain=False
+    )
+    time.sleep(1)  # 1Hz (클라우드용, 제어는 DDS로)
+```
+
+### Subscriber (클라우드 대시보드)
+```python
+import paho.mqtt.client as mqtt
+import json
+
+def on_connect(client, userdata, flags, rc, properties=None):
+    print(f"Connected: {rc}")
+    # 모든 로봇 상태 구독
+    client.subscribe('robot/+/status', qos=1)
+    client.subscribe('robot/+/error', qos=2)
+
+def on_message(client, userdata, msg):
+    topic_parts = msg.topic.split('/')
+    robot_id = topic_parts[1]
+    data_type = topic_parts[2]
+
+    payload = json.loads(msg.payload.decode())
+    print(f"Robot {robot_id} {data_type}: {payload}")
+
+    # 오류 시 알림 전송 로직
+    if data_type == 'error' and payload.get('error_code', 0) != 0:
+        send_alert(robot_id, payload)
+
+client = mqtt.Client(protocol=mqtt.MQTTv5)
+client.on_connect = on_connect
+client.on_message = on_message
+client.connect('iot.hospital.com', 8883)
+client.loop_forever()
+```
+
+---
+
+## MQTT v5.0 주요 신기능
+
+| 기능 | 설명 |
+|------|------|
+| Message Expiry Interval | 메시지 유효 시간 설정 |
+| User Properties | 커스텀 헤더 추가 (Key-Value) |
+| Topic Alias | 긴 토픽 이름을 숫자로 대체 (대역폭 절약) |
+| Shared Subscriptions | 로드 밸런싱 구독 (여러 구독자 중 한 명에게) |
+| Request-Response | 응답 토픽 지정 가능 |
+| Flow Control | 최대 수신 메시지 수 제어 |
+
+---
+
+## MQTT 브로커 선택 가이드
+
+| 브로커 | 특징 | 추천 용도 |
+|--------|------|---------|
+| Mosquitto | 경량, 오픈소스 | 소규모, 개발용 |
+| EMQX | 고성능, 클러스터 | 대규모 배포 |
+| HiveMQ | 엔터프라이즈, 플러그인 | 기업 환경 |
+| AWS IoT Core | 클라우드 관리형 | AWS 기반 IoT |
+| Azure IoT Hub | 클라우드 관리형 | Azure 기반 IoT |
+
+```bash
+# Mosquitto 설치 및 실행 (개발용)
+apt-get install mosquitto mosquitto-clients
+
+# TLS 없이 기본 실행
+mosquitto -p 1883
+
+# TLS 적용 설정 (/etc/mosquitto/conf.d/tls.conf)
+# listener 8883
+# cafile /etc/mosquitto/ca.crt
+# certfile /etc/mosquitto/server.crt
+# keyfile /etc/mosquitto/server.key
+# require_certificate true
+
+# 메시지 발행 테스트
+mosquitto_pub -h localhost -p 1883 -t 'robot/R001/status' -m '{"online":true}'
+
+# 메시지 구독 테스트
+mosquitto_sub -h localhost -p 1883 -t 'robot/+/status'
+```
+
+---
+
+## 의료 로봇 MQTT 통합 아키텍처
+
+```
+로봇 내부 (실시간):
+  DDS/SOME/IP ─► 조인트 제어 (1kHz, < 1ms)
+  TSN Ethernet
+
+Edge Gateway (변환):
+  DDS 메시지 → JSON 변환 → MQTT 발행
+
+클라우드 (모니터링):
+  MQTT Broker (TLS 암호화)
+  └─► 실시간 대시보드 (WebSocket)
+  └─► 데이터 저장 (InfluxDB, TimescaleDB)
+  └─► AI 분석 (이상 감지, 예측 유지보수)
+  └─► 알림 (이메일, SMS, 앱 푸시)
+```
+
+---
 
 ## Reference
-- [MQTT - The Standard for IoT Messaging](https://mqtt.org/)
-- [HiveMQ - MQTT Essentials](https://www.hivemq.com/mqtt-essentials/)
+- [MQTT v5.0 Specification (OASIS)](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+- [paho-mqtt Python Client](https://github.com/eclipse/paho.mqtt.python)
+- [Eclipse Mosquitto Broker](https://mosquitto.org/)
+- [EMQX Enterprise](https://www.emqx.com/en)
+- [AWS IoT Core MQTT](https://docs.aws.amazon.com/iot/latest/developerguide/mqtt.html)

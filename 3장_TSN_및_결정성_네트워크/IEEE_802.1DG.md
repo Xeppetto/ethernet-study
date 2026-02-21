@@ -1,23 +1,212 @@
-# IEEE 802.1DG (Automotive Profile)
+# IEEE 802.1DG (Automotive Profile for TSN)
 
 ## 개요
-TSN(Time Sensitive Networking)은 산업용 이더넷 표준의 집합체(Set of Standards)로, 다양한 요구사항을 가진 산업 분야에 적용될 수 있도록 수많은 표준(IEEE 802.1Qbv, 802.1AS, 802.1CB 등)이 존재합니다. 하지만 모든 산업 분야가 모든 TSN 기능을 필요로 하는 것은 아닙니다. 따라서 각 산업(Automotive, Industrial, Aerospace)에 맞게 필요한 기능과 설정을 정의한 것을 'Profile(프로파일)'이라고 합니다. IEEE 802.1DG는 차량용(Automotive) 이더넷을 위한 프로파일을 정의하는 표준입니다.
+TSN(Time Sensitive Networking)은 다양한 표준들의 집합체입니다. IEEE 802.1DG는 차량용 Ethernet에서 **반드시 지원해야 하는 TSN 기능을 정의하는 Automotive Profile**입니다. 상호 호환성(Interoperability)을 보장하고 과도한 옵션으로 인한 혼란을 방지합니다.
 
-### 프로파일의 필요성
-TSN 표준들은 매우 유연하고 방대하여, 제조사마다 구현 방식이나 설정이 다를 수 있습니다. 이는 상호 호환성(Interoperability) 문제를 야기할 수 있습니다. 예를 들어, A사의 스위치는 802.1Qbv의 특정 기능을 지원하지만, B사의 스위치는 지원하지 않을 수 있습니다. 이를 해결하기 위해, IEEE 802.1DG는 차량 내 네트워크에서 필수적으로 지원해야 하는 기능, 성능, 설정값 등을 명확하게 규정합니다.
+의료 로봇을 포함한 산업용 시스템에서도 IEEE 802.1DG를 기반으로 프로파일을 설계합니다.
 
-### 주요 내용
-- **Mandatory Features**: 차량용 이더넷 스위치 및 종단 장치(End Station)가 반드시 지원해야 하는 TSN 기능을 명시합니다. (예: 802.1AS-2020 필수, 802.1Qbv 필수 등)
-- **Configuration**: 각 기능에 대한 기본 설정값(Default Value)과 설정 범위(Range)를 정의합니다.
-- **Performance Requirements**: 네트워크 지연(Latency), 지터(Jitter), 패킷 손실률(Packet Loss Rate) 등에 대한 최소 요구사항을 제시합니다.
+---
 
-### 의료 로봇 분야의 적용 (Automotive Profile의 재활용)
-의료 로봇 분야는 아직 자체적인 TSN 프로파일 표준이 확립되지 않았습니다. 하지만 의료 로봇의 요구사항(실시간성, 안전성, 신뢰성)은 자율주행차의 요구사항과 매우 유사합니다. 따라서 많은 의료 로봇 개발자들은 이미 검증되고 성숙한 IEEE 802.1DG Automotive Profile을 참조하여 네트워크를 설계하고 있습니다.
+## TSN 표준 전체 지도
 
-- **안전성**: ISO 26262(기능 안전)를 만족하기 위한 네트워크 요구사항이 802.1DG에 반영되어 있어, 의료 기기 안전 규격(IEC 60601-1)을 준수하는 데 유리합니다.
-- **실시간성**: 차량 제어에 필요한 1ms 이하의 지연 시간을 보장하는 기술들이 포함되어 있어, 정밀 수술 로봇 제어에 적합합니다.
-- **생태계 활용**: 차량용 이더넷 칩셋과 스위치를 그대로 활용할 수 있어 비용 절감 및 부품 수급 안정성을 확보할 수 있습니다.
+```
+TSN 표준 생태계:
+
+시간 동기화:
+  IEEE 802.1AS   ← gPTP (필수)
+
+트래픽 스케줄링:
+  IEEE 802.1Qbv  ← TAS (Time Aware Shaper, 필수)
+  IEEE 802.1Qav  ← CBS (Credit-Based Shaper, 선택)
+  IEEE 802.1Qbu  ← Frame Preemption (선택)
+  IEEE 802.1Qbr  ← Interspersing Express Traffic (선택)
+
+신뢰성:
+  IEEE 802.1CB   ← FRER 이중화 (선택)
+  IEEE 802.1Qci  ← PSFP 폴리싱 (선택)
+
+설정/관리:
+  IEEE 802.1Qcc  ← 중앙집중형 네트워크 설정
+  IEEE 802.1Qcx  ← YANG 데이터 모델
+
+프로파일:
+  IEEE 802.1DG   ← Automotive Profile (지금 이 문서)
+  IEC 60802      ← Industrial (공장) Profile
+  ARINC 664 P7   ← Avionics (항공) Profile
+```
+
+---
+
+## IEEE 802.1DG 필수/선택 요구사항
+
+### 종단 장치(End Station) 요구사항
+
+| TSN 기능 | 요구 수준 | 설명 |
+|---------|---------|------|
+| 802.1AS gPTP | **필수** | 시간 동기화 |
+| 802.1Qbv TAS | 선택 | 스케줄된 트래픽 전송 |
+| 802.1Qbu Preemption | 선택 | 프레임 선점 |
+| 802.1CB FRER | 선택 | 이중화 (안전 요구 시) |
+| 802.1Qci PSFP | 선택 | 수신 폴리싱 |
+| 802.1p Priority | **필수** | 8단계 우선순위 |
+| VLAN (802.1Q) | **필수** | 트래픽 격리 |
+
+### 브리지(Bridge/Switch) 요구사항
+
+| TSN 기능 | 요구 수준 | 설명 |
+|---------|---------|------|
+| 802.1AS Transparent/Boundary Clock | **필수** | 시간 동기화 전파 |
+| 802.1Qbv TAS | **필수** | GCL 스케줄링 |
+| 802.1Qci PSFP | **필수** | 트래픽 폴리싱 |
+| 802.1CB FRER | 선택 | 이중화 |
+| 802.1Qbu Preemption | 선택 | 프레임 선점 |
+| NETCONF/YANG 설정 | **필수** | 원격 설정 관리 |
+
+---
+
+## 성능 요구사항 (802.1DG 기준)
+
+```
+지연(Latency):
+  Scheduled Traffic (TC7): < 100µs (단일 스위치 홉 기준)
+  Best Effort Traffic:      제한 없음 (단, 제어 트래픽에 영향 없음)
+
+지터(Jitter):
+  Scheduled Traffic: < 1µs (TAS + 802.1AS 조합 시)
+
+패킷 손실률(Packet Loss Rate):
+  Scheduled Traffic: 0% (FRER 적용 시 링크 장애에도)
+  Best Effort: 1% 이하 권장
+
+시간 동기화 정밀도:
+  동일 네트워크 내: < 1µs
+  최대 7홉: < 1µs (Transparent Clock 사용 시)
+
+링크 속도:
+  최소: 100BASE-T1 (100Mbps)
+  권장: 1000BASE-T1 (1Gbps)
+  고속: 2.5G/5G BASE-T1 (차세대)
+```
+
+---
+
+## 네트워크 설정 관리 (NETCONF/YANG)
+
+802.1DG는 NETCONF 프로토콜과 YANG 데이터 모델로 중앙에서 TSN 설정을 관리하도록 요구합니다.
+
+### 설정 방식 비교
+| 방식 | 특징 |
+|------|------|
+| Fully Distributed | 각 장치가 독자적으로 설정 (유연하나 관리 어려움) |
+| Fully Centralized | CUC(중앙 사용자 설정) + CNC(중앙 네트워크 설정) |
+| Hybrid | 일부 중앙, 일부 분산 |
+
+### CNC (Centralized Network Configuration) 아키텍처
+```
+┌──────────────────────────────────────────────────────────────┐
+│  CUC (Centralized User Configuration)                        │
+│  - 애플리케이션 요구사항 정의                                 │
+│  - "제어 트래픽 100µs 지연 보장" 요청                         │
+└──────────────────────┬───────────────────────────────────────┘
+                       │ Yang 모델 (NETCONF)
+┌──────────────────────▼───────────────────────────────────────┐
+│  CNC (Centralized Network Configuration)                     │
+│  - GCL 계산                                                  │
+│  - 최적 경로 결정                                            │
+│  - PSFP 정책 계산                                            │
+└──────┬──────────────┬──────────────┬──────────────────────────┘
+       │              │              │ NETCONF 설정 배포
+  Switch A       Switch B       End Station
+  (GCL 적용)    (GCL 적용)     (TX 설정)
+```
+
+```python
+# NETCONF/YANG으로 GCL 설정 예시 (개념)
+from ncclient import manager
+
+with manager.connect(host='192.168.1.10',  # TSN 스위치
+                     port=830,
+                     username='admin',
+                     password='password') as m:
+
+    # 802.1Qbv GCL 설정 YANG
+    config = """
+    <config>
+      <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+        <interface>
+          <name>eth0</name>
+          <scheduled-traffic xmlns="urn:ieee:std:802.1Q:yang:ieee802-dot1q-sched">
+            <gate-parameters>
+              <cycle-time>
+                <numerator>1000000</numerator>  <!-- 1ms -->
+                <denominator>1000000000</denominator>
+              </cycle-time>
+              <admin-control-list>
+                <gate-control-entry>
+                  <index>0</index>
+                  <operation-name>set-gate-states</operation-name>
+                  <time-interval-value>100000</time-interval-value>
+                  <gate-states-value>128</gate-states-value> <!-- 0x80: TC7만 -->
+                </gate-control-entry>
+              </admin-control-list>
+            </gate-parameters>
+          </scheduled-traffic>
+        </interface>
+      </interfaces>
+    </config>
+    """
+    m.edit_config(target='running', config=config)
+```
+
+---
+
+## 802.1DG와 산업 프로파일 비교
+
+| 특성 | 802.1DG (Automotive) | IEC 60802 (Industrial) |
+|------|---------------------|----------------------|
+| 목표 도메인 | 차량 내 네트워크 | 공장 자동화, 프로세스 산업 |
+| 최대 홉 수 | 7 | 제한 없음 |
+| 최소 사이클 타임 | 250µs | 31.25µs |
+| 신뢰성 | FRER 선택 | FRER 필수 (안전 클래스) |
+| 보안 | 802.1AE MACsec 권장 | 선택 |
+| 시간 동기화 | 802.1AS | 802.1AS |
+| 스케줄링 | TAS | TAS + CBS |
+
+---
+
+## 의료 로봇 커스텀 프로파일 설계
+
+의료 로봇 업계에 특화된 TSN 프로파일은 표준화 진행 중입니다. 현재는 802.1DG를 기반으로 의료 안전 요구사항을 추가합니다.
+
+```
+의료 로봇 TSN 프로파일 (비공식):
+
+필수 요구사항:
+  ✓ 802.1AS: < 500ns 동기화 정밀도
+  ✓ 802.1Qbv: TAS 사이클 ≤ 2ms (500Hz 제어)
+  ✓ 802.1Qci: PSFP (Babbling Idiot 방어)
+  ✓ 802.1CB: FRER (안전 제어 스트림)
+  ✓ VLAN 격리: 안전/제어/진단 분리
+  ✓ MACsec(802.1AE): 암호화
+
+추가 요구사항 (의료 규제):
+  ✓ IEC 62304 준수 소프트웨어
+  ✓ ISO 26262 ASIL-B 이상 (안전 제어)
+  ✓ IEC 60601-1 (EMC 및 전기 안전)
+  ✓ 사이버보안: ISO/SAE 21434
+
+성능 목표:
+  제어 루프 지연: < 1ms end-to-end
+  안전 신호 지연: < 2ms
+  시간 동기화: < 1µs
+  가용성: 99.9999% (FRER)
+```
+
+---
 
 ## Reference
-- [IEEE P802.1DG - Automotive Profile](https://1.ieee802.org/tsn/802-1dg/)
-- [Avnu Alliance - Automotive Profile for TSN](https://avnu.org/automotive/)
+- [IEEE P802.1DG - TSN Profile for Automotive](https://1.ieee802.org/tsn/802-1dg/)
+- [IEC 60802 - TSN Profile for Industrial Automation](https://webstore.iec.ch/)
+- [Avnu Alliance - Automotive TSN](https://avnu.org/automotive/)
+- [RFC 6241 - NETCONF Protocol](https://datatracker.ietf.org/doc/html/rfc6241)
+- [IEEE 802.1Qcc - Stream Reservation Protocol (SRP) Extensions](https://standards.ieee.org/ieee/802.1Qcc/6135/)
