@@ -172,4 +172,4 @@ sudo apt-get install docker.io docker-compose
 ---
 
 ## License
-MIT License
+MIT License - 이 문서는 AI와 협업하여 작성하였습니다 : 인간 + Claude + GPT + Gemini
