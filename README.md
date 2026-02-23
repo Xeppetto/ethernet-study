@@ -1,6 +1,6 @@
 # 의료 로봇 Ethernet 전환 학습 가이드
 
-v0.2
+v0.21
 
 ## 개요 (Overview)
 
