@@ -210,9 +210,156 @@ ip monitor link
 
 ---
 
+---
+
+## 지연 예산 (Latency Budget) 계산
+
+의료 로봇 제어망 설계 시 End-to-End 지연 예산을 사전에 계산해야 합니다.
+
+### 지연 구성 요소와 공식
+
+```
+총 지연 = Σ (직렬화 지연 + 전파 지연) + Σ 스위치 처리 지연 + 큐잉 지연
+
+1. 직렬화 지연 (Serialization Delay)
+   T_ser = (Frame_Byte + 20) × 8 / Link_Speed_bps
+   (20 Byte = Preamble 7 + SFD 1 + IFG 12)
+
+2. 전파 지연 (Propagation Delay)
+   구리 케이블: ≈ 5 ns/m  (신호 속도 ≈ 200,000 km/s)
+   광섬유:      ≈ 5 ns/m  (굴절률에 따라 4~5 ns/m)
+
+3. Store-and-Forward 스위치 지연
+   T_sf = T_ser (입력 포트 직렬화 지연과 동일)
+
+4. 큐잉 지연
+   Best-Effort: 0 ~ 수 ms (혼잡 의존, 비결정적)
+   TSN TAS 적용: 사전 계산된 최대값 (결정론적)
+```
+
+### 속도별 직렬화 지연 빠른 참조표
+
+| 프레임 크기 | 100 Mbps | 1 Gbps | 10 Gbps | 용도 |
+|------------|---------|--------|---------|------|
+| 64 Byte   | 6.72 µs | 0.672 µs | 67.2 ns | ARP, 소형 제어 |
+| 256 Byte  | 22.1 µs | 2.21 µs  | 221 ns  | 관절 제어 데이터 |
+| 512 Byte  | 42.6 µs | 4.26 µs  | 426 ns  | 센서 묶음 |
+| 1518 Byte | 122 µs  | 12.2 µs  | 1.22 µs | 표준 최대 |
+
+### 의료 로봇 2-hop 지연 예산 예시
+
+```
+구성: 제어기 → TSN 스위치 → 관절 ECU (2 링크, 1Gbps, 256B 프레임)
+
+  링크 1 직렬화: (256+20)×8/1G = 2.208 µs
+  링크 1 전파:   20m × 5ns/m  = 0.100 µs
+  SW1 S&F:       2.208 µs     (수신 완료 대기)
+  SW1 처리:      1.000 µs     (TSN 스위치 내부)
+  링크 2 직렬화: 2.208 µs
+  링크 2 전파:   10m × 5ns/m  = 0.050 µs
+  ─────────────────────────────────────────
+  최소 지연 합:  7.774 µs     (큐잉 없을 때)
+
+1ms 제어 사이클 대비: 7.774/1000 = 0.78% → 충분한 여유
+TSN TAS WCRT 목표:   < 15 µs (안전 마진 포함)
+```
+
+---
+
+## EEE (Energy Efficient Ethernet) - TSN 위험 요소
+
+### EEE 개요 (IEEE 802.3az)
+
+```
+목적: 유휴 시 PHY를 LPI(Low Power Idle) 모드로 전환 → 50~80% 전력 절감
+
+동작:
+  트래픽 없음 → PHY LPI 진입
+  트래픽 재개 → Wake-up 후 정상 동작
+
+EEE 웨이크업 지연 (Tw):
+  100BASE-TX: Tw ≈ 16 µs
+  1000BASE-T: Tw ≈ 16.5 µs
+  10GBASE-T:  Tw ≈ 4.48 µs
+  100BASE-T1: 미지원 (설계적으로 EEE 없음)
+```
+
+### TSN에서 EEE 위험성
+
+```
+문제 시나리오:
+  T=0: TAS 게이트 OPEN → 안전 제어 패킷 전송 시도
+  T=0~16µs: PHY 웨이크업 중 → 전송 불가!
+  T=16µs: PHY 준비 → 이미 타임슬롯 초과
+  결과: 안전 제어 패킷 지연 또는 손실 → 제어 루프 파손
+
+→ TSN 환경에서 EEE는 반드시 비활성화
+```
+
+```bash
+# EEE 상태 확인 및 비활성화
+ethtool --show-eee eth0
+# EEE status: enabled  ← 비활성화 필요
+
+ethtool --set-eee eth0 eee off
+
+# 설정 확인
+ethtool --show-eee eth0
+# EEE status: disabled  ← 정상
+```
+
+---
+
+## TSN PHY 요구사항
+
+### 필수 기능
+
+```
+1. 하드웨어 타임스탬핑 (IEEE 1588v2)
+   - RX/TX 각각 SFD 수신/전송 시점에 하드웨어 클록 캡처
+   - 정밀도 요구: < 10 ns (일반 달성: < 1 ns)
+   - 소프트웨어 타임스탬프로는 수 µs 오차 → PTP 정밀도 불가
+
+   확인:
+   ethtool -T eth0 | grep -E "hardware-transmit|hardware-receive"
+
+2. EEE 비지원 또는 비활성화 가능
+   → TSN 인증 PHY는 대부분 EEE 미지원 또는 비활성화 옵션 제공
+
+3. TAS 하드웨어 지원 (권장)
+   - 소프트웨어 TAS: OS 스케줄링 지터 포함 (수 µs 오차)
+   - 하드웨어 TAS: PHY/MAC 레벨 정밀 게이트 제어 (ns 수준)
+
+4. PHY 처리 지연 일정성 (Constant PHY Latency)
+   - PTP 투명 클록(TC) 구현 시 PHY 지연을 Correction 필드에 누적
+   - 일정하지 않으면 시간 동기화 오차 증가
+```
+
+### 속도별 TSN 지원 PHY 예시
+
+| 표준 | 칩 예시 | TSN 기능 | 용도 |
+|------|--------|---------|------|
+| 100BASE-T1 | NXP TJA1103 | PTP TS, TAS, SGMII | 차량/로봇 관절 |
+| 1000BASE-T1 | Marvell 88Q2221 | PTP TS, TAS | 고속 제어 |
+| 1000BASE-T | Intel I210 | PTP TS, TAS (S/W) | PC 기반 제어기 |
+| 1000BASE-T | Intel I225-V | PTP TS, TAS (H/W) | 최신 PC 제어기 |
+| 2.5GBASE-T1 | Marvell 88Q4364 | PTP TS | 차세대 차량 |
+
+```bash
+# Intel I210/I225 TSN 기능 확인
+ethtool -T eth0          # 타임스탬핑 지원 확인
+ethtool -k eth0 | grep -E "hw-tc-offload|tx-scheduling"
+# hw-tc-offload: on  ← 하드웨어 TAS 지원 표시
+```
+
+---
+
 ## Reference
 - [IEEE 802.3-2022 - Ethernet Standard (Complete)](https://standards.ieee.org/ieee/802.3/10422/)
+- [IEEE 802.3az - Energy Efficient Ethernet (EEE)](https://standards.ieee.org/ieee/802.3az/4270/)
 - [IEEE 802.3cg - 10BASE-T1S/T1L](https://standards.ieee.org/ieee/802.3cg/7438/)
 - [IEEE 802.3bw - 100BASE-T1](https://standards.ieee.org/ieee/802.3bw/5447/)
+- [IEEE 1588-2019 - Precision Time Protocol (PTP)](https://standards.ieee.org/ieee/1588/6825/)
 - [TIA-568 - Commercial Building Telecommunications Cabling Standard](https://www.tiaonline.org/)
 - [Ethernet Alliance - Technology Roadmap](https://ethernetalliance.org/technology/ethernet-roadmap/)
+- [Linux PTP Project - linuxptp](https://linuxptp.sourceforge.net/)

@@ -21,15 +21,18 @@ v0.2
 ## 목차 (Table of Contents)
 
 ### 1장. Ethernet 기초 (Network Basics)
-네트워크의 기본 원리와 Ethernet의 핵심 개념을 다룹니다.
+네트워크의 기본 원리와 Ethernet의 핵심 개념을 다룹니다. 3장 TSN 및 5장 기능 안전으로 이어지는 기반을 제공합니다.
 
-- [OSI 7 Layer](./1장_Ethernet_기초/OSI_7_Layer.md) - OSI 모델, TCP/IP 비교, 산업 프로토콜 매핑
+- [OSI 7 Layer](./1장_Ethernet_기초/OSI_7_Layer.md) - OSI 모델, LLC/MAC 하위 계층, Collision/Broadcast Domain, TCP/IP 비교, DSCP↔PCP 매핑
+- [Ethernet 프레임 구조 심화](./1장_Ethernet_기초/Ethernet_Frame_Structure.md) - Preamble/SFD/IFG, 프레임 크기, EtherType, 직렬화 지연, PTP 프레임, 안전 무결성
 - [MAC와 IP 차이](./1장_Ethernet_기초/MAC_IP_Difference.md) - MAC 주소 구조, ARP, IPv4/IPv6, 서브네팅
 - [Unicast, Multicast, Broadcast](./1장_Ethernet_기초/Unicast_Multicast_Broadcast.md) - 전송 방식 비교, IGMP, DDS 멀티캐스트
-- [Full Duplex Switching](./1장_Ethernet_기초/Full_Duplex_Switching.md) - 스위칭, QoS, 802.1p, 오류 통계
+- [Full Duplex Switching](./1장_Ethernet_기초/Full_Duplex_Switching.md) - 스위칭, QoS, 직렬화 지연, WRR/DWRR, STP/RSTP, TSN Guard Band
+- [흐름 제어와 버퍼 관리](./1장_Ethernet_기초/Flow_Control_and_Buffer.md) - PAUSE/PFC, HOL Blocking, CBS, 큐 스케줄링, 안전 설계 지침
+- [VLAN / IEEE 802.1Q](./1장_Ethernet_기초/VLAN_IEEE_802.1Q.md) - VLAN 태깅, QinQ, VLAN Hopping 방어, PVST vs MSTP, TSN 연동
+- [Ethernet 속도 표준](./1장_Ethernet_기초/Ethernet_Speed_Standards.md) - 10M~400G 표준, 지연 예산 계산, EEE 위험, TSN PHY 요구사항
 - [Single Pair Ethernet](./1장_Ethernet_기초/Single_Pair_Ethernet.md) - 10BASE-T1S, 100BASE-T1, PLCA, PoDL
-- [VLAN / IEEE 802.1Q](./1장_Ethernet_기초/VLAN_IEEE_802.1Q.md) - VLAN 태깅, QinQ, Linux VLAN 설정
-- [Ethernet 속도 표준](./1장_Ethernet_기초/Ethernet_Speed_Standards.md) - 10M~400G 표준, PHY, 케이블
+- [결정성 네트워크와 의료 안전 기초](./1장_Ethernet_기초/Determinism_and_Safety_Basics.md) - 비결정성 원인, 네트워크 장애 분류, Fail-safe 설계, IEC 62304 요구사항, 3장 TSN 연결
 
 ### 2장. 아키텍처 전환 (Architecture Transition)
 전통적인 아키텍처에서 Ethernet 기반 차세대 아키텍처로의 전환을 설명합니다.

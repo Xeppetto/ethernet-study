@@ -219,8 +219,122 @@ vlan.id == 20 and arp
 
 ---
 
+---
+
+## VLAN 보안 취약점 (의료기기 사이버보안 관련)
+
+IEC 62304, ISO/SAE 21434, UNECE R155를 준수하는 의료 로봇 설계에서 VLAN 보안 취약점을 이해하는 것은 필수입니다.
+
+### VLAN Hopping 공격 1: Double Tagging
+
+```
+공격 원리:
+  공격자 PC가 S-Tag(Native VLAN) + C-Tag(목표 VLAN) 이중 태그 전송
+  첫 번째 스위치: S-Tag 제거 → C-Tag만 남음 → 목표 VLAN으로 전달
+  두 번째 스위치: 목표 VLAN 프레임으로 인식 → 안전망 침투!
+
+조건: 공격자 포트의 Native VLAN = Outer Tag VLAN ID
+
+시나리오:
+  공격자 (VLAN 30) → [VLAN 30 outer][VLAN 10 inner] 이중 태그 전송
+  스위치 1: VLAN 30 outer 제거
+  스위치 2: VLAN 10으로 포워딩 → 안전 ECU 망 침투!
+
+방어:
+  1. Native VLAN을 사용하지 않는 전용 ID로 변경 (예: VLAN 999)
+  2. Trunk 포트에서 Native VLAN 태깅 강제
+  3. 사용하지 않는 전용 VLAN ID를 Native VLAN으로 설정
+```
+
+### VLAN Hopping 공격 2: Switch Spoofing
+
+```
+공격 원리:
+  공격자가 DTP(Dynamic Trunking Protocol) 메시지 전송
+  스위치가 공격자 포트를 Trunk 포트로 오인
+  → 모든 VLAN 트래픽에 접근 가능
+
+방어:
+  모든 Access 포트를 명시적으로 고정 설정:
+  # Linux bridge 환경에서 포트를 명시적 Access로 설정
+  bridge vlan add dev eth1 vid 10 pvid untagged  # VLAN 10 Access 포트
+```
+
+### 의료 로봇 VLAN 보안 설계 체크리스트
+
+```
+✓ Native VLAN 변경 (기본 VLAN 1 사용 금지)
+✓ 사용하지 않는 포트: 비활성화 또는 격리 VLAN 할당
+✓ 안전 제어 VLAN에 ACL(Access Control List) 적용
+✓ IGMP Snooping 활성화 (멀티캐스트 범람 방지)
+✓ Port Security: 포트당 허용 MAC 주소 제한
+✓ Storm Control: Broadcast/Multicast/Unknown Unicast 임계값 설정
+✓ VLAN 간 통신: 방화벽 통과 후에만 허용
+✓ 관리 VLAN을 안전 VLAN과 완전 분리
+✓ 주기적 VLAN 설정 감사(Audit)
+```
+
+---
+
+## PVST vs MSTP 비교
+
+다수 VLAN 환경에서 Spanning Tree 방식을 적절히 선택해야 합니다.
+
+### PVST (Per-VLAN Spanning Tree) - Cisco 독점
+
+```
+특성:
+  - VLAN마다 독립 STP 인스턴스 실행 → VLAN별 경로 최적화 가능
+  - CPU/메모리 부하: VLAN 수에 비례 증가
+  - 비표준 (Cisco 전용, 멀티벤더 호환성 없음)
+```
+
+### MSTP (Multiple Spanning Tree Protocol) - IEEE 802.1s (표준)
+
+```
+특성:
+  - 다수 VLAN을 몇 개의 MST 인스턴스로 그룹화
+  - 표준 기반 멀티벤더 호환
+  - CPU/메모리 효율적
+
+설계 예 (의료 로봇):
+  MST 인스턴스 0 (CIST): VLAN 1, 99 (관리)
+  MST 인스턴스 1: VLAN 10, 20 (안전/제어) → Root = 주 스위치
+  MST 인스턴스 2: VLAN 30, 40 (영상/Best Effort) → Root = 부 스위치
+
+TSN 환경 권장:
+  루프 없는 토폴로지 설계 → MSTP는 비상 Fallback으로만 사용
+  FRER(802.1CB)으로 이중화 → STP 전환 없이 무중단 경로 전환
+```
+
+---
+
+## TSN과 VLAN 연동
+
+TSN 스케줄링(TAS, CBS)은 VLAN PCP 값을 기반으로 트래픽을 분류합니다.
+
+```
+VLAN PCP ─► TSN 큐 매핑 예시 (1Gbps 링크):
+
+PCP 7: 네트워크 제어(STP BPDU, LLDP, PTP)  → Strict Priority
+PCP 5: 안전 제어 (ST Traffic)               → TAS Gate 0 (100µs 슬롯)
+PCP 4: 실시간 제어 (AVB Class A)            → CBS idleSlope=400Mbps
+PCP 3: 영상 (AVB Class B)                   → CBS idleSlope=200Mbps
+PCP 0: Best Effort (진단, OTA)              → FIFO
+
+TAS Gate Control List 예시 (400µs 사이클):
+  T=0   ~ T=100µs: PCP 5 게이트 OPEN만      (ST 전용 슬롯)
+  T=100 ~ T=300µs: PCP 4, 3 게이트 OPEN     (CBS + BE 허용)
+  T=300 ~ T=400µs: PCP 0, 3 게이트 OPEN     (BE + 영상)
+```
+
+---
+
 ## Reference
 - [IEEE 802.1Q-2022 - Bridges and Bridged Networks](https://standards.ieee.org/ieee/802.1Q/6844/)
 - [IEEE 802.1ad - Provider Bridges (QinQ)](https://standards.ieee.org/ieee/802.1ad/3979/)
+- [IEEE 802.1s - Multiple Spanning Tree Protocol (MSTP)](https://standards.ieee.org/ieee/802.1s/3968/)
+- [IEEE 802.1CB-2017 - Frame Replication and Elimination for Reliability](https://standards.ieee.org/ieee/802.1CB/6421/)
 - [Linux VLAN Howto](https://www.kernel.org/doc/html/latest/networking/vlan.html)
-- [RFC 5517 - Cisco Systems' Private VLANs: Scalable Security in a Multi-Client Environment](https://datatracker.ietf.org/doc/html/rfc5517)
+- [RFC 5517 - Cisco Systems' Private VLANs](https://datatracker.ietf.org/doc/html/rfc5517)
+- [ENISA - Network Security for Medical Devices](https://www.enisa.europa.eu/)
