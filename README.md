@@ -1,6 +1,16 @@
-# 의료 로봇 Ethernet 전환 학습 가이드
+# 산업 전반에 걸친 Ethernet 전환 : 학습 가이드
 
 v0.24
+
+## 작업자 소회
+
+1996년 HTML을 배워 개인 홈페이지를 만든 이후 현재까지 개인 블로그를 개발하거나 거대 플랫폼이 제공하는 Social Media에 이런 저런 생각들을 정리하여 게시하였지만, 2023년 AI가 본격적으로 사용된 이후 큰 충격에 빠져 Publish했던 블로그 글들 대다수를 local PC로 내리고 배포를 중단했습니다. 2025년의 AI Agent 대격변 시대를 겪는 동안 '인간은 앞으로 어떻게 글을 쓰고 어떻게 지식 체계를 만들어가야 하는가'에 대한 질문을 저 스스로에게 던지고 고민을 시작하였습니다. 
+
+2026년 현재, 이 repository가 제가 찾은 답입니다. AI는 **인간이 문제라고 입력하는 것들을 인간이 입력해야만 그게 문제라고 알 수 있을 뿐** 입니다. AI는 인간과 같은 형태로 진화하지 않았습니다. AI는 인간의 '도마뱀의 뇌'도 이해할 수 없을 거고, 인간 행동의 90% 이상이 본능에서 발현되는 비-이성적인 행동임을 몸소 체험할 수 없을 것입니다. AI에게는 인간이 진화 과정에서 터득한 「감각의 인지」 과정과 인지 경험 축적으로 인한 「사유」가 존재하기 어렵습니다. 주어진 프롬프트와 데이터대로 「표현」을 하는 것이죠. 그러므로, 현실에서 발생하는 문제의 대부분은 비-이성적이고 비-합리적인 형태의 문제들이므로, 그 현상을 인지하고, 사유하여 지속 가능한 형태, 혹은 예방 가능한 형태로의 문제 해결은 인간만이 알 수 있고 볼 수 있습니다. 인공지능이 여기까지 온다면 그때부터 진짜 Strong AI, General Intelligence의 시작이지 않을까 싶습니다.
+
+그래서 현재까지는 각 문제 상황에 맞는 지식 체계는 그 문제 상황을 겪는 인간 본인만이 해결할 수 있지 않나 생각이 듭니다. 그렇게 지식 체계를 다듬고, AI의 도움을 받아 지식을 축적하고, 인간은 그것을 다시 정리하여 문제를 해결하는 방식... 그렇게 이 지식 체계를 정리하였습니다. 물론 앞으로 AI는 더욱 발전할 것이고, 우리가 찾아가야 할 해답들은 변해갈 수 있습니다. AI는 계속 발전할테니 우리도 함께 발전하며 AI와 함께 답을 찾아가는 좋은 인간 친구가 되어줘어야 겠습니다.
+
+---
 
 ## 개요 (Overview)
 
@@ -28,7 +38,7 @@ v0.24
 - [Ethernet은 제어 네트워크가 아니다](./0장_Ethernet_전환_배경/Ethernet_Control_Network_Gap.md) - Best-Effort 한계, 지터·지연 분석, TSN 해법 매핑
 - [의료 로봇 맥락](./0장_Ethernet_전환_배경/Medical_Robot_Context.md) - Safety-Critical 요구사항, IEC 62304, 지연이 수술 품질에 미치는 영향
 - [자동차 산업 맥락](./0장_Ethernet_전환_배경/Automotive_Ethernet_Context.md) - ECU 배선 위기, 100BASE-T1·SOME/IP·AUTOSAR 탄생 배경, SDV·OTA·UNECE R155/R156, 의료 로봇으로의 기술 이전
-- [이 문서의 학습 전략](./0장_Ethernet_전환_배경/Learning_Strategy.md) - 1장→2장→3장→5장→7장 로드맵, 학습자 유형별 경로, 핵심 개념 30개
+- [이 문서의 학습 전략](./0장_Ethernet_전환_배경/Learning_Strategy.md) - 학습자 유형별 경로, 핵심 개념
 
 ### 1장. Ethernet 기초 (Network Basics)
 네트워크의 기본 원리와 Ethernet의 핵심 개념을 다룹니다. 3장 TSN 및 5장 기능 안전으로 이어지는 기반을 제공합니다.
@@ -45,14 +55,16 @@ v0.24
 - [결정성 네트워크와 의료 안전 기초](./1장_Ethernet_기초/Determinism_and_Safety_Basics.md) - 비결정성 원인, 네트워크 장애 분류, Fail-safe 설계, IEC 62304 요구사항, 3장 TSN 연결
 
 ### 2장. 아키텍처 전환 (Architecture Transition)
-전통적인 아키텍처에서 Ethernet 기반 차세대 아키텍처로의 전환을 설명합니다.
+전통적인 아키텍처에서 Ethernet 기반 차세대 아키텍처로의 전환을 설명합니다. 의료 로봇 설계 시나리오를 중심으로 Zone 설계, HPC 가상화, OTA 보안, 미들웨어 선택, RTOS 비교, 하드웨어 플랫폼 선정까지 아키텍처 전환의 전 과정을 다룹니다.
 
-- [Zonal Architecture](./2장_아키텍처_전환/Zonal_Architecture.md) - Zone Controller, 배선 절감, TSN 통합
-- [중앙집중형 컴퓨팅 (HPC)](./2장_아키텍처_전환/Centralized_Computing.md) - HPC 구조, 하이퍼바이저, AI 통합
-- [Software Defined Vehicle (SDV)](./2장_아키텍처_전환/SDV.md) - SW 중심 설계, OTA, CI/CD
-- [Domain Controller 통합](./2장_아키텍처_전환/Domain_Controller_Integration.md) - DC 진화, CPU 격리, IOMMU
-- [Service Oriented Architecture (SOA)](./2장_아키텍처_전환/SOA.md) - SOME/IP SD, DDS QoS, ROS 2
-- [AUTOSAR Classic vs Adaptive](./2장_아키텍처_전환/AUTOSAR_Classic_vs_Adaptive.md) - 비교, ara::com, 공존 아키텍처
+- [Zonal Architecture](./2장_아키텍처_전환/Zonal_Architecture.md) - Zone Controller, 배선 절감 원리, TAS GCL 설정 예제, 의료 로봇 3-Zone 설계, IEC 62304 요구사항
+- [중앙집중형 컴퓨팅 (HPC)](./2장_아키텍처_전환/Centralized_Computing.md) - HPC 구조, Type-1 하이퍼바이저, CPU isolcpus 격리, Safety MCU 워치독, 이중화·열 관리
+- [Software Defined Vehicle (SDV)](./2장_아키텍처_전환/SDV.md) - OTA 보안, IEC 62304 OTA 요구사항, 의료기기 CI/CD 파이프라인, Yocto 빌드
+- [Domain Controller 통합](./2장_아키텍처_전환/Domain_Controller_Integration.md) - 4-도메인 아키텍처, 도메인 간 지연 예산, IVSHMEM IPC, FMEA, 3단계 마이그레이션
+- [Service Oriented Architecture (SOA)](./2장_아키텍처_전환/SOA.md) - SOME/IP 16-byte 헤더 구조, DDS 매핑표, ROS 2 Action Server, 미들웨어 비교
+- [AUTOSAR Classic vs Adaptive](./2장_아키텍처_전환/AUTOSAR_Classic_vs_Adaptive.md) - 모듈 비교, 워치독, IEC 62304 플랫폼 적합성, 3단계 마이그레이션 전략
+- [RTOS와 실시간 OS](./2장_아키텍처_전환/RTOS_and_Realtime_OS.md) - Hard/Soft/Firm 실시간 분류, OS 비교, cyclictest WCRT 측정 방법
+- [하드웨어 플랫폼 선정](./2장_아키텍처_전환/Hardware_Platform_Selection.md) - SoC 비교, TSN NIC 선정, TSN 스위치 체크리스트, 메모리·스토리지 가이드
 
 ### 3장. TSN 및 결정성 네트워크 (TSN & Deterministic Network)
 의료 로봇 제어에 필수적인 실시간성을 보장하는 TSN 기술을 다룹니다.
