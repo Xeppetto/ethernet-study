@@ -37,7 +37,7 @@ v0.23
 - [왜 Ethernet인가](./0장_Ethernet_전환_배경/Why_Ethernet.md) - 속도·생태계·IP 확장성·SW 정의 적합성, CAN 대비 5가지 우위
 - [Ethernet은 제어 네트워크가 아니다](./0장_Ethernet_전환_배경/Ethernet_Control_Network_Gap.md) - Best-Effort 한계, 지터·지연 분석, TSN 해법 매핑
 - [의료 로봇 맥락](./0장_Ethernet_전환_배경/Medical_Robot_Context.md) - Safety-Critical 요구사항, IEC 62304, 지연이 수술 품질에 미치는 영향
-- [이 문서의 학습 전략](./0장_Ethernet_전환_배경/Learning_Strategy.md) - 1장→2장→3장→5장→7장 로드맵, 학습자 유형별 경로, 핵심 개념 30개
+- [이 문서의 학습 전략](./0장_Ethernet_전환_배경/Learning_Strategy.md) - 학습자 유형별 경로, 핵심 개념
 
 ### 1장. Ethernet 기초 (Network Basics)
 네트워크의 기본 원리와 Ethernet의 핵심 개념을 다룹니다. 3장 TSN 및 5장 기능 안전으로 이어지는 기반을 제공합니다.
