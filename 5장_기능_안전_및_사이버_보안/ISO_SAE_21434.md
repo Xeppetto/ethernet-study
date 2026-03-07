@@ -327,6 +327,75 @@ fi
 
 ---
 
+## SecOC (Secure Onboard Communication)
+
+```
+AUTOSAR SecOC - 차량/로봇 내부 메시지 인증:
+
+개요:
+  ECU 간 CAN/Ethernet 메시지에 MAC(Message Authentication Code) 추가
+  → 메시지 출처 인증 + 위변조 탐지
+  → E2E Protection과 상호 보완 (E2E: 오류 탐지, SecOC: 인증)
+
+SecOC 메시지 구조:
+  ┌──────────────────────┬───────────────┬──────────────────┐
+  │   Original PDU       │ Freshness Value│ MAC (Truncated)  │
+  │   (CAN/Eth 페이로드)  │   (카운터/타임)│  (32~64 bit)    │
+  └──────────────────────┴───────────────┴──────────────────┘
+
+Freshness Value 목적:
+  → 메시지 재생 공격(Replay Attack) 방지
+  → 유형: 단조 증가 카운터 (Counter-based)
+          타임스탬프 (Time-based, gPTP 필요)
+
+MAC 알고리즘:
+  CMAC-AES-128: 자동차 MCU용 (SHE HW 가속)
+  HMAC-SHA256:  고성능 ECU / 의료 로봇 권장
+  Truncated MAC: 32~64 bit (CAN 대역폭 제약)
+
+SecOC 구현 흐름 (개념):
+
+Sender (ECU A):
+  1. PDU + FreshnessValue 준비
+  2. MAC = CMAC_AES128(key, PDU || FreshnessValue)
+  3. SecOC PDU = PDU || FreshnessValue[MSB] || MAC[truncated]
+  4. 전송
+
+Receiver (ECU B):
+  1. SecOC PDU 수신
+  2. FreshnessValue 재구성 (Counter 동기화)
+  3. MAC 재계산 후 비교
+  4. 불일치: PDU 폐기 + 보안 이벤트 로그
+```
+
+---
+
+## 보안 코딩 표준 (CERT C/C++)
+
+| 규칙 분류 | 예시 규칙 | 설명 | CAL 적용 수준 |
+|---------|---------|------|------------|
+| 정수 오버플로우 | INT32-C | 부호 있는 정수 오버플로 방지 | CAL 2+ |
+| 버퍼 오버런 | ARR30-C | 경계 밖 접근 금지 | CAL 2+ |
+| 초기화되지 않은 값 | EXP33-C | 미초기화 변수 사용 금지 | CAL 1+ |
+| 포맷 문자열 | FIO30-C | 사용자 입력을 포맷 문자열로 사용 금지 | CAL 2+ |
+| 경쟁 조건 | CON32-C | 스레드 안전성 보장 | CAL 2+ |
+| 취약한 암호화 | MSC24-C | 약한 난수 생성기 사용 금지 | CAL 3+ |
+
+```bash
+# 정적 보안 분석 도구
+flawfinder src/        # CWE 기반 취약점 탐지
+cppcheck --enable=all --std=c++17 src/
+clang-tidy -checks='cert-*,cppcoreguidelines-*' src/
+
+# 퍼징 (CAL 3/4 요구)
+# AFL++로 입력 파싱 함수 퍼징
+afl-fuzz -i seeds/ -o findings/ -- ./robot_parser @@
+
+# 침투 테스트 보고서 → TARA 업데이트 입력
+```
+
+---
+
 ## Reference
 - [ISO/SAE 21434:2021 - Road vehicles — Cybersecurity engineering](https://www.iso.org/standard/70918.html)
 - [ENISA - Good Practices for Security of IoT](https://www.enisa.europa.eu/publications/good-practices-for-security-of-iot-1)
