@@ -1,6 +1,8 @@
-# 의료 로봇 Ethernet 전환 학습 가이드
+# 산업 전반에 걸친 Ethernet 전환 : 학습 가이드
 
 v0.25
+
+---
 
 ## 개요 (Overview)
 
@@ -27,8 +29,8 @@ v0.25
 - [왜 Ethernet인가](./0장_Ethernet_전환_배경/Why_Ethernet.md) - 속도·생태계·IP 확장성·SW 정의 적합성, CAN 대비 5가지 우위
 - [Ethernet은 제어 네트워크가 아니다](./0장_Ethernet_전환_배경/Ethernet_Control_Network_Gap.md) - Best-Effort 한계, 지터·지연 분석, TSN 해법 매핑
 - [의료 로봇 맥락](./0장_Ethernet_전환_배경/Medical_Robot_Context.md) - Safety-Critical 요구사항, IEC 62304, 지연이 수술 품질에 미치는 영향
-- [자동차 산업 맥락](./0장_Ethernet_전환_배경/Automotive_Ethernet_Context.md) - ECU 배선 위기, 100BASE-T1·SOME/IP·AUTOSAR 탄생 배경, SDV·OTA·UNECE R155/R156, 의료 로봇으로의 기술 이전
-- [이 문서의 학습 전략](./0장_Ethernet_전환_배경/Learning_Strategy.md) - 1장→2장→3장→5장→7장 로드맵, 학습자 유형별 경로, 핵심 개념 30개
+- [자동차 산업 맥락](./0장_Ethernet_전환_배경/Automotive_Ethernet_Context.md) - ECU 배선 위기, SOME/IP·AUTOSAR 탄생 배경, SDV·OTA·UNECE R155/R156, 의료 로봇으로의 기술 이전
+- [이 문서의 학습 전략](./0장_Ethernet_전환_배경/Learning_Strategy.md) - 학습자 유형별 경로, 핵심 개념
 
 ### 1장. Ethernet 기초 (Network Basics)
 네트워크의 기본 원리와 Ethernet의 핵심 개념을 다룹니다. 3장 TSN 및 5장 기능 안전으로 이어지는 기반을 제공합니다.
@@ -45,14 +47,16 @@ v0.25
 - [결정성 네트워크와 의료 안전 기초](./1장_Ethernet_기초/Determinism_and_Safety_Basics.md) - 비결정성 원인, 네트워크 장애 분류, Fail-safe 설계, IEC 62304 요구사항, 3장 TSN 연결
 
 ### 2장. 아키텍처 전환 (Architecture Transition)
-전통적인 아키텍처에서 Ethernet 기반 차세대 아키텍처로의 전환을 설명합니다.
+전통적인 아키텍처에서 Ethernet 기반 차세대 아키텍처로의 전환을 설명합니다. 의료 로봇 설계 시나리오를 중심으로 Zone 설계, HPC 가상화, OTA 보안, 미들웨어 선택, RTOS 비교, 하드웨어 플랫폼 선정까지 아키텍처 전환의 전 과정을 다룹니다.
 
-- [Zonal Architecture](./2장_아키텍처_전환/Zonal_Architecture.md) - Zone Controller, 배선 절감, TSN 통합
-- [중앙집중형 컴퓨팅 (HPC)](./2장_아키텍처_전환/Centralized_Computing.md) - HPC 구조, 하이퍼바이저, AI 통합
-- [Software Defined Vehicle (SDV)](./2장_아키텍처_전환/SDV.md) - SW 중심 설계, OTA, CI/CD
-- [Domain Controller 통합](./2장_아키텍처_전환/Domain_Controller_Integration.md) - DC 진화, CPU 격리, IOMMU
-- [Service Oriented Architecture (SOA)](./2장_아키텍처_전환/SOA.md) - SOME/IP SD, DDS QoS, ROS 2
-- [AUTOSAR Classic vs Adaptive](./2장_아키텍처_전환/AUTOSAR_Classic_vs_Adaptive.md) - 비교, ara::com, 공존 아키텍처
+- [Zonal Architecture](./2장_아키텍처_전환/Zonal_Architecture.md) - Zone Controller, 배선 절감 원리, TAS GCL 설정 예제, 의료 로봇 3-Zone 설계, IEC 62304 요구사항
+- [중앙집중형 컴퓨팅 (HPC)](./2장_아키텍처_전환/Centralized_Computing.md) - HPC 구조, Type-1 하이퍼바이저, CPU isolcpus 격리, Safety MCU 워치독, 이중화·열 관리
+- [Software Defined Vehicle (SDV)](./2장_아키텍처_전환/SDV.md) - OTA 보안, IEC 62304 OTA 요구사항, 의료기기 CI/CD 파이프라인, Yocto 빌드
+- [Domain Controller 통합](./2장_아키텍처_전환/Domain_Controller_Integration.md) - 4-도메인 아키텍처, 도메인 간 지연 예산, IVSHMEM IPC, FMEA, 3단계 마이그레이션
+- [Service Oriented Architecture (SOA)](./2장_아키텍처_전환/SOA.md) - SOME/IP 16-byte 헤더 구조, DDS 매핑표, ROS 2 Action Server, 미들웨어 비교
+- [AUTOSAR Classic vs Adaptive](./2장_아키텍처_전환/AUTOSAR_Classic_vs_Adaptive.md) - 모듈 비교, 워치독, IEC 62304 플랫폼 적합성, 3단계 마이그레이션 전략
+- [RTOS와 실시간 OS](./2장_아키텍처_전환/RTOS_and_Realtime_OS.md) - Hard/Soft/Firm 실시간 분류, OS 비교, cyclictest WCRT 측정 방법
+- [하드웨어 플랫폼 선정](./2장_아키텍처_전환/Hardware_Platform_Selection.md) - SoC 비교, TSN NIC 선정, TSN 스위치 체크리스트, 메모리·스토리지 가이드
 
 ### 3장. TSN 및 결정성 네트워크 (TSN & Deterministic Network)
 의료 로봇 제어에 필수적인 실시간성을 보장하는 TSN 기술을 다룹니다.
