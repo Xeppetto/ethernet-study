@@ -1,303 +1,306 @@
-# 중앙집중형 컴퓨팅: HPC 아키텍처
+# 중앙집중형 컴퓨팅 (HPC / HPVC)
 
-## 왜 중앙집중인가
-
-분산 ECU 시대의 문제는 단순히 "ECU가 너무 많다"가 아니었다. 진짜 문제는 ECU들 사이에 지능이 없다는 것이었다. 각 ECU는 자신의 임무만 수행하고, 시스템 전체의 맥락을 볼 수 없었다. 수술 로봇에서 로봇 팔이 갑자기 빨리 움직일 때, 관절 ECU는 그것이 의사의 의도적인 동작인지, 소프트웨어 버그인지, 외부 충격인지 구분할 수 없었다. 그 판단은 모든 ECU의 상태를 동시에 볼 수 있는 상위 시스템에서만 가능하다.
-
-고성능 컴퓨터(HPC) 하나 혹은 두 대가 모든 연산을 통합하면, 시스템 전체의 상태를 하나의 일관된 모델로 유지할 수 있다. AI가 내시경 영상을 분석하면서 동시에 관절 힘 데이터와 연결지어 "이 방향으로 힘이 증가하는 것은 의심 조직 경계에 근접했기 때문"이라고 판단하는 것—이것은 중앙집중 없이 불가능하다.
+## 개요
+차량 및 의료 로봇 시스템이 복잡해지면서 수십 개의 소형 ECU들이 분산 처리하던 구조에서, 고성능 컴퓨터(HPC, High Performance Computer) 한두 대가 모든 연산을 통합 처리하는 방식으로 진화하고 있습니다. 이를 통해 AI 기능 통합, OTA 업데이트, 소프트웨어 중심 설계가 가능해집니다.
 
 ---
 
-## 아키텍처 진화: 세 단계
+## 아키텍처 발전 단계
 
 ```
 1세대: 분산 ECU (2000년대)
-───────────────────────────────────────────────────
-관절 #1 ECU ─CAN─ 관절 #2 ECU ─CAN─ 안전 ECU ─CAN─ HMI ECU
-  ↑4MHz MCU    ↑4MHz MCU     ↑16MHz MCU    ↑32MHz MCU
-
-각 ECU는 단일 기능, 수KB RAM, 실시간 보장 쉬움
-단점: 시스템 전체 인지 불가, AI 추론 불가, 소프트 업데이트 어려움
+  ECU #1 ─CAN─ ECU #2 ─CAN─ ECU #3 ─CAN─ ... ECU #100
+  각 ECU: 단일 기능, 4~32MHz MCU, 16~512KB Flash
 
 2세대: Domain Controller (2010년대)
-───────────────────────────────────────────────────
-Motion DC ─100BASE-T1─ Vision DC ─100BASE-T1─ Safety DC
-↑800MHz AP           ↑1GHz AP              ↑200MHz MCU
-각 DC: 수십 MB RAM, 영역 내 AI 부분 가능
-단점: 여전히 도메인 간 데이터 공유 복잡, 수백 ECU 통합 미완
+  파워트레인 DC ─Ethernet─ 섀시 DC ─Ethernet─ 인포테인먼트 DC
+  각 DC: 다기능 통합, 수백MHz AP
 
 3세대: 중앙집중형 HPC (2020년대~)
-───────────────────────────────────────────────────
-HPC ─TSN Ethernet─ Zone ECU ─ 센서/액추에이터
-↑수백 TOPS AI, ↑수십코어 CPU, 수십GB RAM
-Zone ECU: 경량 MCU (프로토콜 변환, 로컬 안전 감시)
-이점: 전체 상태 통합, AI 추론, OTA, 소프트웨어 정의
+  Zone ECU ─TSN Ethernet─ HPC ─10GbE─ Cloud
+                │
+           AI/GPU/NPU (100+ TOPS)
+  HPC: 멀티코어 CPU + GPU/NPU 통합 SoC
 ```
 
 ---
 
-## HPC 내부 구조: 계층별 역할
+## 주요 HPC SoC 비교
 
-HPC는 단일 칩이 아니라 여러 이종(heterogeneous) 처리 유닛의 집합이다.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      HPC (Patient-Side Computer)                 │
-│                                                                 │
-│  ┌───────────────────────┐   ┌───────────────────────────────┐  │
-│  │   Application SoC     │   │   Safety MCU                  │  │
-│  │  (NVIDIA Orin / NXP)  │   │   (TI TDA4VM / Renesas R-Car) │  │
-│  │                       │   │                               │  │
-│  │  CPU: 12× Cortex-A78  │   │  CPU: Cortex-R52 Lockstep    │  │
-│  │  GPU: Ampere 2048 CUDA│   │  ASIL-D 인증                  │  │
-│  │  DLA: 2× 설계         │   │  독립 전원 도메인             │  │
-│  │  Memory: 32GB LPDDR5  │   │  내장 WDT, BIST 자가진단      │  │
-│  │  Storage: NVMe 512GB  │   │  Ethernet PHY (모니터링)      │  │
-│  └──────────┬────────────┘   └──────────────┬────────────────┘  │
-│             │ PCIe Gen4 ×8                   │ SPI/UART/Ethernet│
-│  ┌──────────▼────────────────────────────────▼────────────────┐  │
-│  │          내부 TSN 이더넷 스위치 (8× 1GbE + 2× 10GbE)       │  │
-│  │          → Zone ECU 연결, 외부 콘솔 연결                    │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────┐  ┌──────────────────────────────────┐    │
-│  │  HSM               │  │  전원 관리 IC (PMIC)             │    │
-│  │  (Hardware Security│  │  입력: 24V DC                    │    │
-│  │   Module)          │  │  출력: SoC 0.8V/1.8V, MCU 3.3V  │    │
-│  │  Secure Boot 키    │  │  Safety MCU: 별도 레귤레이터    │    │
-│  │  TLS 인증서 저장   │  └──────────────────────────────────┘    │
-│  └───────────────────┘                                           │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**SoC와 Safety MCU의 분리가 중요한 이유:** SoC(Application Processor)는 Linux/RTOS를 돌리고 AI 추론을 수행하는 고성능 칩이지만, 소프트웨어 버그, 메모리 오류, 열 스로틀링 등으로 인해 일시적으로 응답이 없어질 수 있다. Safety MCU는 이것을 감시하다가 HPC에서 50밀리초 동안 heartbeat가 오지 않으면 Fail-Safe를 실행한다. 이 두 칩은 독립적인 전원 레일과 독립적인 리셋 회로를 가져야 한다—하나가 죽어도 다른 하나는 살아있어야 한다.
+| SoC | 제조사 | CPU | AI 성능 | 메모리 | 주요 용도 |
+|-----|--------|-----|---------|--------|----------|
+| Drive Orin X | NVIDIA | 12× Cortex-A78AE | 254 TOPS | 64GB LPDDR5 | 자율주행 L4/L5 |
+| Drive Thor | NVIDIA | 다중 클러스터 | 2000 TOPS | - | 차세대 SDV |
+| Snapdragon SA8295P | Qualcomm | 8× Kryo Gold | 30 TOPS | 16GB LPDDR5 | Cockpit/IVI |
+| TDA4VM (Jacinto 7) | Texas Instruments | 2× Cortex-A72 + MCU | 8 TOPS | 4GB LPDDR4 | ADAS ASIL-D |
+| R-Car S4 | Renesas | 8× Cortex-A55 | 12 TOPS | 16GB LPDDR5 | 게이트웨이/HPC |
+| S32G3 | NXP | 4× Cortex-A53 + 3× M7 | - | 4GB LPDDR4 | 네트워크 HPC |
+| i.MX 95 | NXP | 6× Cortex-A55 | 4 TOPS (NPU) | 8GB LPDDR5 | 의료/로봇 |
 
 ---
 
-## 하이퍼바이저: 하나의 HPC에서 실시간과 비실시간을 격리
-
-의료 로봇 HPC에서 가장 어려운 과제 중 하나는 실시간 제어 코드와 비실시간 서비스(AI, OTA, 로깅)를 같은 하드웨어에서 안전하게 분리하는 것이다. 하이퍼바이저(Hypervisor)가 이 문제를 해결한다.
+## HPC 내부 구성 요소
 
 ```
-HPC 하드웨어: ARM Cortex-A78AE × 12코어
-─────────────────────────────────────────────────────────────────
-Type-1 Hypervisor (QNX Hypervisor 2.2 / ACRN / Xen)
-─────────────────────────────────────────────────────────────────
-  파티션 A: Safety Partition        파티션 B: General Partition
-  ─────────────────────────         ─────────────────────────────
-  QNX Neutrino RTOS 7.1             Ubuntu 22.04 LTS / Yocto
-  코어: CPU 0, 1, 2 (격리됨)        코어: CPU 3~11
-  메모리: 2GB (전용, 고정)           메모리: 30GB (가변)
-  인터럽트: 직접 핸들링              인터럽트: 가상화됨
-  ─────────────────────────         ─────────────────────────────
-  • 관절 제어 루프 (1kHz)           • ROS 2 플래닝 노드
-  • 힘/토크 처리                    • AI 추론 (PyTorch)
-  • Safety watchdog                 • OTA 클라이언트
-  • FRER/PTP 스택                   • 원격 진단 서버
-  • 비상 정지 로직                   • 로그 수집 및 전송
-  ─────────────────────────         ─────────────────────────────
-  WCL: < 50µs (실측)                지터: 수ms 허용 가능
-  ASIL-B 소프트웨어                  비안전(ASIL-QM)
-─────────────────────────────────────────────────────────────────
-  공유 메모리 채널 (IVSHMEM, 1µs 미만 IPC)
-  → 파티션 A가 제어 명령 publish, 파티션 B가 읽음
+┌──────────────────────────────────────────────────────────────┐
+│                    HPC (High Performance Computer)            │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  │
+│  │  AP 클러스터  │  │  AI 가속기   │  │  Safety MCU        │  │
+│  │  (멀티코어)  │  │  (GPU/NPU)   │  │  (ASIL-D 인증)     │  │
+│  │  4~12 Cores  │  │  8~254 TOPS  │  │  독립 전원         │  │
+│  │  Linux/QNX   │  │  TensorRT    │  │  Watchdog/BIST     │  │
+│  └──────────────┘  └──────────────┘  └────────────────────┘  │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  │
+│  │  Hypervisor   │  │  TSN Switch  │  │  HSM               │  │
+│  │  (가상화)    │  │  (Ethernet)  │  │  (보안 모듈)       │  │
+│  │  RTOS 격리   │  │  8× 1GbE     │  │  SecureBoot        │  │
+│  │  메모리 분리  │  │  2× 10GbE   │  │  AES/ECC 엔진      │  │
+│  └──────────────┘  └──────────────┘  └────────────────────┘  │
+│                                                              │
+│  인터페이스: PCIe Gen4×8, 10GbE (Cloud), CAN FD×4, USB 3.1   │
+│  스토리지: NVMe SSD 256GB (OS + 모델), eMMC 32GB (백업)       │
+└──────────────────────────────────────────────────────────────┘
 ```
-
-**하이퍼바이저 타이밍 오버헤드:** Type-1 하이퍼바이저도 실시간 파티션에 지연을 추가한다. QNX Hypervisor의 경우 파티션 스케줄링 오버헤드가 약 5~15마이크로초다. 이것이 1ms 제어 루프에서 무시할 수 없다면, CPU 코어를 파티션에 전용 배정(pinning)하고 하이퍼바이저 스케줄러가 개입하지 않게 구성할 수 있다.
 
 ---
 
-## CPU 코어 격리: 실시간 태스크에 코어를 독점시키기
+## 하이퍼바이저(Hypervisor)와 가상화
 
-하이퍼바이저 없이 Linux 단일 커널로 구성할 때, 실시간 태스크가 OS의 일반 스케줄링 압력을 받지 않도록 CPU 코어를 격리해야 한다.
+하나의 HPC에서 안전 제어(RTOS)와 사용자 서비스(Linux)를 동시에 격리 실행합니다.
+
+### Hypervisor 유형 비교
+
+| 구분 | Type-1 (Bare-metal) | Type-2 (Hosted) | 컨테이너 |
+|------|---------------------|-----------------|---------|
+| 실행 위치 | 하드웨어 직접 | Host OS 위 | OS 커널 공유 |
+| 격리 수준 | 완전 (하드웨어 MMU) | 부분 | 프로세스 격리 |
+| 실시간성 | 우수 (RTOS 직접 실행) | 제한적 | OS 스케줄러 의존 |
+| 안전 인증 | ASIL-B/D 가능 | 불가 | 불가 |
+| 예시 | QNX Hypervisor, Xen, ACRN | KVM, VirtualBox | Docker, Podman |
+| 부팅 속도 | 느림 | 느림 | 빠름 (수백ms) |
+| 오버헤드 | 2~5% | 10~20% | 1~2% |
+
+### Type-1 Hypervisor 파티셔닝 구조
+```
+┌─────────────────────────────────────────────────┐
+│  HPC 하드웨어 (ARM Cortex-A78AE 12코어, ARM64)   │
+├─────────────────────────────────────────────────┤
+│  Type-1 Hypervisor (QNX Hypervisor / ACRN)      │
+│  ARM Stage-2 MMU 기반 메모리 격리               │
+├──────────────────────┬──────────────────────────┤
+│  Guest OS A          │  Guest OS B              │
+│  QNX Neutrino RTOS   │  Ubuntu 22.04 LTS        │
+│  Core 0,1,2 전용     │  Core 3,4,5,6,7 할당     │
+│  ─────────────────── │  ─────────────────────── │
+│  안전 제어 서비스     │  AI 추론 서비스           │
+│  관절 PID 제어        │  TensorRT 모델           │
+│  힘/토크 제한         │  OTA 관리 (ara::ucm)     │
+│  Emergency Stop       │  Cloud 연동 (MQTT TLS)   │
+│  응답: < 1ms          │  ROS 2 노드              │
+│  ASIL-B 격리          │  일반 서비스             │
+├──────────────────────┴──────────────────────────┤
+│  공유 메모리 통신 (격리된 IPC 채널, 512MB 영역)  │
+└─────────────────────────────────────────────────┘
+
+메모리 격리 보장:
+  Guest A: 4GB 전용 (QNX는 16GB 이상 필요 없음)
+  Guest B: 16GB 전용 (AI 모델 로딩용)
+  Shared: 512MB (제어 명령/상태 교환용)
+```
+
+### 컨테이너 기반 서비스 배포
+```bash
+# 의료 로봇 AI 서비스 컨테이너화 예시
+docker run -d \
+  --name surgical-ai \
+  --runtime=nvidia \                    # NVIDIA GPU/DLA 접근
+  --cpuset-cpus="3,4,5" \              # CPU 코어 고정
+  --memory="8g" \                       # 메모리 제한
+  --device /dev/ttyUSB0 \              # 수술 도구 인터페이스
+  --network=host \                      # Ethernet DDS 직접 접근
+  -v /opt/models:/opt/models:ro \      # AI 모델 마운트
+  registry.hospital.com/surgical-ai:v2.1.0
+
+# 롤링 업데이트 (OTA 완료 후)
+docker pull registry.hospital.com/surgical-ai:v2.2.0
+docker stop surgical-ai
+docker run -d ... surgical-ai:v2.2.0
+```
+
+---
+
+## AI/머신러닝 통합
+
+HPC에 탑재된 NPU/GPU로 엣지 AI 추론을 실행합니다.
+
+### AI 추론 파이프라인
+```
+센서 데이터 입력
+(4K 카메라 × 3, 초음파, 힘 센서)
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│  전처리 (CUDA/OpenCV, GPU)                  │
+│  리사이즈, 정규화, 배치 구성                 │
+│  처리 시간: 2~5ms                           │
+└──────────────────┬──────────────────────────┘
+                   │
+        ▼
+┌─────────────────────────────────────────────┐
+│  HPC NPU/GPU 추론                           │
+│  ① YOLOv8: 수술 도구/조직 객체 인식  15ms  │
+│  ② DepthNet: 내시경 3D 깊이 추정     20ms  │
+│  ③ AnomalyNet: 출혈/조직 이상 감지   10ms  │
+│  ④ PathPlanner: 로봇 팔 동작 계획    5ms   │
+│  총 추론 시간: < 50ms (20 FPS 목표)         │
+│  요구 성능: > 50 TOPS                       │
+└──────────────────┬──────────────────────────┘
+                   │
+        ▼
+Zone ECU → 모터/액추에이터 제어 (1ms 주기)
+```
+
+### AI 프레임워크 비교
+
+| 프레임워크 | 목표 플랫폼 | 최적화 방식 | 의료 로봇 활용 |
+|----------|-----------|-----------|----------------|
+| TensorRT | NVIDIA GPU/DLA | INT8/FP16 양자화 | 최고 추론 속도 |
+| OpenVINO | Intel VPU/iGPU | IR 모델 최적화 | x86 기반 HPC |
+| ONNX Runtime | 범용 | 다중 백엔드 | 이식성 필요 시 |
+| TFLite | ARM NPU/MCU | 8-bit 양자화 | Zone ECU 엣지 AI |
+| PyTorch Mobile | ARM CPU | 동적 그래프 | 프로토타이핑 |
+
+---
+
+## CPU 코어 분리 및 실시간성 보장
 
 ```bash
-# 1. 부트 파라미터로 코어 격리 (grub 설정)
-# /etc/default/grub
-GRUB_CMDLINE_LINUX="isolcpus=0,1,2 nohz_full=0,1,2 rcu_nocbs=0,1,2"
-# isolcpus: 일반 스케줄러에서 제외
-# nohz_full: 해당 코어의 타이머 인터럽트 최소화
-# rcu_nocbs: RCU 콜백을 다른 코어로 오프로드
+# Linux PREEMPT_RT 패치 + CPU isolation
+# /etc/default/grub 커널 파라미터
+GRUB_CMDLINE_LINUX="isolcpus=0,1 nohz_full=0,1 rcu_nocbs=0,1"
 
-# 2. 격리된 코어에 실시간 프로세스 배정
-taskset -c 0 chrt --fifo 99 ./joint_control_loop
+# 실시간 프로세스 Core 0,1 고정 + FIFO 스케줄링
+sudo taskset -c 0,1 ./realtime_joint_control &
+sudo chrt -f 90 -p $(pgrep realtime_joint_control)
 
-# 3. IRQ 어피니티 조정 (실시간 코어에서 인터럽트 제거)
-for irq in $(ls /proc/irq); do
-    [ -d /proc/irq/$irq ] && echo "c" > /proc/irq/$irq/smp_affinity  # 코어 2,3에만
-done
+# 메모리 페이지 락 (페이지 폴트 방지)
+mlockall(MCL_CURRENT | MCL_FUTURE);
 
-# 4. 실시간 태스크 메모리 락 (페이지 폴트 방지)
-# C 코드에서:
-# mlockall(MCL_CURRENT | MCL_FUTURE);
-# → 전체 프로세스 메모리를 물리 메모리에 고정
-
-# 5. 결과 확인: cyclictest로 지터 측정
-cyclictest --mlockall -p99 -t1 -a0 -n -i1000 -l100000 -h200
-# -a0: CPU 코어 0에서 실행
-# -i1000: 1000µs (1ms) 간격
-# -l100000: 100,000회 측정
+# IRQ Affinity: 네트워크 인터럽트를 비실시간 코어로 분리
+echo 0xF0 > /proc/irq/$(cat /proc/interrupts | grep eth0 | awk '{print $1}')/smp_affinity
 ```
 
-**실측 비교 (1GHz ARM Cortex-A72, 1ms 주기):**
-
-| 구성 | 평균 지터 | 최악 지터 |
-|---|---|---|
-| 표준 Linux (4.19) | 50~200µs | 5~10ms |
-| PREEMPT_RT 패치 적용 | 10~50µs | 100~300µs |
-| isolcpus + PREEMPT_RT | 5~15µs | 30~80µs |
-| RTOS (QNX) 단독 | 1~5µs | 10~20µs |
-| QNX Hypervisor (전용 코어) | 2~8µs | 15~30µs |
-
-> 의료 로봇 1kHz 제어 루프의 목표 지터는 ±50µs 이하이므로, 표준 Linux 단독으로는 요구사항을 만족하지 못한다. PREEMPT_RT + isolcpus 조합이 최소 요구사항이며, 더 엄격한 경우 RTOS 파티션이 필요하다.
+```
+코어 배분 전략 (12코어 예시):
+  Core 0, 1   : Safety MCU 통신 전용 (IRQ 전담, FIFO priority 90)
+  Core 2, 3   : 관절 PID 제어 (1ms 주기, FIFO priority 80)
+  Core 4, 5   : ROS 2 실시간 노드 (5ms 주기, FIFO priority 60)
+  Core 6, 7   : AI 추론 (TensorRT, 50ms 주기)
+  Core 8, 9   : OTA / 클라우드 연동 (일반 CFS 스케줄링)
+  Core 10, 11 : OS 커널 + 드라이버 + 시스템 서비스
+```
 
 ---
 
-## IOMMU/SMMU: DMA 격리로 메모리 안전 보장
+## 중앙집중형 HPC의 도전 과제
 
-HPC에서 여러 게스트 OS가 동시에 동작하면, 하나의 게스트가 DMA(Direct Memory Access)를 통해 다른 게스트의 메모리에 접근할 위험이 있다. 버그가 있는 네트워크 드라이버가 잘못된 DMA 주소를 쓰면 안전 파티션의 메모리를 덮어쓸 수 있다.
+### 기능 안전 (단일 실패 지점 해결)
+```
+분산 ECU 구조:
+  ECU #1 고장 → 해당 기능만 중단 (다른 ECU 정상)
 
-IOMMU(Input/Output Memory Management Unit, x86) 또는 SMMU(System MMU, ARM)가 이를 방지한다. 각 장치의 DMA 접근을 I/O 페이지 테이블로 제어해, 허가된 메모리 영역에만 접근할 수 있게 한다.
+HPC 집중 구조 위험:
+  HPC 고장 → 전체 기능 마비 (Single Point of Failure)
 
-```bash
-# Intel IOMMU 활성화 (GRUB)
-GRUB_CMDLINE_LINUX="intel_iommu=on iommu=pt"
+해결 방법:
 
-# ARM SMMU 상태 확인
-dmesg | grep -i smmu
-# [    0.456789] arm-smmu-v3 arm-smmu-v3.0: probed (6 master devices)
+방법 1: 이중화 HPC (Lockstep 방식)
+  HPC #1 (주) ── 결과 비교 ── HPC #2 (감시)
+    둘 다 동일 입력 처리 → 출력 불일치 시 안전 상태 전환
 
-# IOMMU 그룹 확인 (어떤 장치가 함께 격리되는지)
-ls /sys/kernel/iommu_groups/
-for d in /sys/kernel/iommu_groups/*/devices/*; do
-    echo "Group: $(basename $(dirname $(dirname $d))): $(basename $d)"
-done
+방법 2: Safety MCU 독립 운용
+  HPC ── Ethernet/CAN ── Safety MCU (ASIL-D)
+  HPC 비정상 감지 시 Safety MCU가 최소 기능 유지
+  (비상 정지, 브레이크 고정, 안전 위치 복귀)
+
+방법 3: Watchdog 계층화
+  Software WDG → OS WDG → External HW WDG (독립 IC)
+  HPC 응답 없음 시 순차 리셋 → 최종 하드웨어 리셋
 ```
 
-**의료 로봇에서의 실제 적용:** TSN NIC를 안전 파티션에만 바인딩하고 SMMU로 해당 NIC의 DMA를 안전 파티션 메모리 영역으로 제한한다. 이렇게 하면 일반 파티션의 네트워크 드라이버가 설령 오작동해도 안전 파티션의 제어 패킷 처리에 영향을 줄 수 없다.
+### 열 관리
+```
+소비 전력 비교:
+  기존 ECU 100개 × 평균 2W = 200W (분산)
+  HPC 1개: 50~200W (집중)
+
+  동일 전력이지만 HPC는 한 점에 집중 → 열 밀도 높음
+
+냉각 방법:
+  1. 공냉: 히트싱크 + 팬 (< 50W HPC)
+  2. 수냉: 냉각판 + 쿨런트 펌프 (50~150W HPC)
+  3. 차량 냉각수 연동: 엔진 냉각 시스템 활용 (> 150W)
+  4. 의료 로봇: 능동 팬 + 열전소자 (소음 최소화 필요)
+
+DVFS (동적 전압/주파수 스케일링):
+  부하 낮음: 1.2GHz @ 0.9V → 30W
+  부하 높음: 2.4GHz @ 1.2V → 80W
+  열 임계치 (95°C): 주파수 강제 감소 (Thermal Throttling)
+```
 
 ---
 
-## AI 추론과 실시간 제어의 공존
+## 의료 로봇 HPC 구성 예시
 
-HPC에서 AI 추론과 1kHz 실시간 제어가 동시에 돌 때 가장 큰 위험은 AI 추론의 가변 실행 시간이 실시간 태스크의 CPU 자원을 빼앗는 것이다. 이를 막는 방법:
+```
+수술 로봇 Main HPC 구성
 
-**방법 1: AI를 별도 코어/GPU에 격리.** AI 추론은 GPU나 NPU(Neural Processing Unit)에서 수행하고, CPU 코어는 제어 루프에 전용 배정한다. NVIDIA Orin의 DLA(Deep Learning Accelerator)는 CPU와 독립적으로 동작해 이 목적에 적합하다.
+┌─────────────────────────────────────────────────────────┐
+│                    Main HPC                              │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ NVIDIA Orin NX 16GB (또는 Qualcomm SA8295P)     │   │
+│  │ CPU: 8× Cortex-A78AE @ 2.2GHz                  │   │
+│  │ GPU: 1024 CUDA cores, 32 DLA TOPS               │   │
+│  │ Memory: 16GB LPDDR5 (CPU+GPU 공유)              │   │
+│  └──────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ Safety MCU (TI TDA4VM / Renesas R-Car S4)       │   │
+│  │ ASIL-D 인증, 독립 전원 (배터리 백업)             │   │
+│  │ BIST 자가진단, 주기적 Heartbeat → HPC 감시       │   │
+│  └──────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ TSN Ethernet Switch (NXP SJA1110 또는 Marvell)  │   │
+│  │ 포트: 8× 1GbE (Zone ECU), 2× 2.5GbE (HPC ↔)   │   │
+│  │ IEEE 802.1Qbv TAS, 802.1AS gPTP 지원           │   │
+│  └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
 
-**방법 2: AI 추론에 CPU 버짓 제한.** Linux `cgroup`으로 AI 프로세스의 CPU 사용률 상한을 설정한다.
-
-```bash
-# AI 추론 프로세스에 CPU 30% 상한 (cgroup v2)
-mkdir /sys/fs/cgroup/ai_inference
-echo "300000 1000000" > /sys/fs/cgroup/ai_inference/cpu.max
-# 1,000,000µs 주기에 300,000µs (30%) 허용
-
-# AI 프로세스를 해당 cgroup에 추가
-echo $AI_PID > /sys/fs/cgroup/ai_inference/cgroup.procs
+소프트웨어 스택:
+  Layer 3: Surgical AI (TensorRT), ROS 2 (Humble), MQTT TLS
+  Layer 2: AUTOSAR Adaptive (ara::com SOME/IP), ara::ucm OTA
+  Layer 1: QNX Hypervisor + Guest: QNX RTOS + Ubuntu 22.04
+  Layer 0: UEFI Secure Boot → U-Boot → Hypervisor
 ```
 
-**방법 3: 결과 유효 기간 설계.** AI 추론 결과(예: 조직 경계 위치)는 1~5ms 단위로 갱신되어도 충분하다. 추론 결과를 공유 메모리에 넣어두고 제어 루프가 항상 최신 결과를 읽는 방식으로, 추론 완료를 기다리지 않아도 된다.
+### IEC 62304 / ISO 26262 규제 매핑
+
+| HPC 컴포넌트 | 안전 등급 | 적용 표준 | 인증 요구사항 |
+|-------------|---------|----------|-------------|
+| Safety MCU (E-Stop) | ASIL-D / Class C | ISO 26262 + IEC 62304 | 독립 감사, MC/DC 커버리지 |
+| 관절 제어 소프트웨어 | ASIL-C / Class C | ISO 26262 + IEC 62304 | 형식 검증, E2E Protection |
+| AI 추론 엔진 | Class B | IEC 62304 | 알고리즘 검증, 성능 시험 |
+| OTA 관리 | Class B | IEC 62304 + R156 | 롤백 기능, 서명 검증 |
+| 클라우드 연동 | Class A | IEC 62304 | 기본 기능 시험 |
 
 ---
 
-## Safety MCU Watchdog 통합
-
-HPC의 Application SoC가 응답을 멈췄을 때 Safety MCU가 감지하고 Fail-Safe로 전환하는 메커니즘이다.
-
-```
-Watchdog 동작 흐름:
-
-Application SoC                   Safety MCU
-─────────────────                 ─────────────────────────────
-제어 루프 실행 (1ms)  ─heartbeat─►  타이머 리셋 (50ms 윈도우)
-                                  타이머 카운트 중...
-                      ─heartbeat─►  타이머 리셋
-                      ─heartbeat─►  타이머 리셋
-(SoC 응답 없음)
-                                  타이머 만료 (50ms 경과)
-                                  → Fail-Safe 실행:
-                                     1. 모든 관절에 브레이크 명령
-                                     2. HPC 전원 사이클 (재시작 시도)
-                                     3. 비상 정지 인터락 활성화
-                                     4. 오류 상태 LED 및 알람
-```
-
-```c
-// Safety MCU 코드 (의사 코드)
-#define WATCHDOG_TIMEOUT_MS  50
-#define HEARTBEAT_PERIOD_MS  10
-
-volatile uint32_t last_heartbeat_time = 0;
-
-void heartbeat_receive_isr(void) {
-    last_heartbeat_time = get_system_time_ms();
-}
-
-void safety_monitor_task(void) {
-    while (1) {
-        uint32_t now = get_system_time_ms();
-        if ((now - last_heartbeat_time) > WATCHDOG_TIMEOUT_MS) {
-            trigger_fail_safe();  // 브레이크, 전원차단, 알람
-        }
-        task_delay_ms(5);  // 5ms 주기 감시
-    }
-}
-```
-
-IEC 62304 관점에서 이 Watchdog 로직은 Class C 소프트웨어로 분류된다. Watchdog 타임아웃 값(50ms)의 도출 근거와 Fail-Safe 동작의 검증 결과가 위험 관리 문서에 포함되어야 한다.
-
----
-
-## HPC 이중화: Single Point of Failure 제거
-
-환자에게 위험이 생길 수 있는 고가용성 구간에서는 HPC를 이중화한다.
-
-```
-HPC #1 (주)                     HPC #2 (예비)
-───────────                     ────────────────
-정상 동작                        대기(Standby) 상태
-Zone ECU 제어                   HPC #1 상태 수신만 (passive)
-Safety MCU 감시                 HPC #1 heartbeat 모니터링
-
-HPC #1 장애 감지 (50ms 내):
-  → HPC #2가 Active로 전환
-  → Zone ECU 제어 인계
-  → 전환 시간 목표: < 100ms
-
-전환 중 갭 처리:
-  Zone ECU에서 Hold-Last-Command (최대 100ms)
-  Zone Safety MCU: 100ms 이상 갭 → 로봇 정지
-
-주의: HPC 절체 100ms 동안 로봇 팔은 Hold 상태
-      수술 중 절체는 의사가 인지해야 함 (HMI 알림)
-```
-
-HPC 이중화의 비용: 하드웨어 두 배, 통신 동기화 오버헤드, SW 복잡도 증가. 따라서 HPC 이중화가 필요한지는 수술 단계별 위험 분석에 근거해야 한다. 모든 수술 단계에 Fail-Operational이 필요한 것은 아니다.
-
----
-
-## 열 관리: 고성능 컴퓨팅의 현실적 제약
-
-NVIDIA Orin NX(10W~25W), Orin AGX(60W~60W 이상)처럼 HPC용 SoC는 상당한 열을 발생시킨다. 수술실 환경에서의 열 관리는 일반 서버실과 다른 제약이 있다.
-
-- **팬 소음**: 수술실에서 팬 소음은 의료진의 집중을 방해할 수 있다. 팬리스 혹은 저속 팬 설계가 선호된다.
-- **열 경계**: 수술 로봇 하우징이 환자와 가까이 있으면 표면 온도 제한(IEC 60601-1: 43°C 이하 손이 닿는 부위)을 지켜야 한다.
-- **성능 스로틀링 방지**: 열이 임계값에 가까워지면 SoC가 동작 주파수를 낮춘다. 이것이 제어 루프 실행 시간에 영향을 주지 않도록 열 설계 여유가 필요하다.
-
-실용적 접근: HPC의 TDP 소비 전력의 150%를 방열 용량으로 설계하고, 지속적인 AI 추론 부하 상태에서 2시간 이상 동작해도 스로틀링이 발생하지 않는지 검증한다.
-
----
-
-## 참고 문헌
-
-- NVIDIA Jetson Orin AGX Technical Reference Manual
-- QNX Hypervisor 2.2 User's Guide — BlackBerry QNX
-- Intel VT-d: Virtualization Technology for Directed I/O, Intel Manual
-- ARM SMMU Architecture Specification v3.3
-- IEC 62304:2006/AMD1:2015 §5.3: Software Architectural Design
-- ACRN Project: https://projectacrn.org
-- Lelli, J. et al. "Deadline Scheduling in the Linux Kernel" OSPERT (2012)
-
----
-
-*관련: [2장 Zonal Architecture](./Zonal_Architecture.md) | [2장 RTOS 및 실시간 OS](./RTOS_and_Realtime_OS.md)*
+## Reference
+- [NVIDIA DRIVE Orin Platform](https://www.nvidia.com/en-us/self-driving-cars/drive-platform/)
+- [Qualcomm Snapdragon Digital Chassis](https://www.qualcomm.com/products/automotive/snapdragon-digital-chassis)
+- [ACRN Hypervisor for Automotive](https://projectacrn.org/)
+- [QNX Hypervisor for Safety](https://blackberry.qnx.com/en/products/hypervisor)
+- [NXP S32G Vehicle Network Processor](https://www.nxp.com/products/processors-and-microcontrollers/arm-processors/s32g-vehicle-network-processors:S32G)
+- [Linux PREEMPT_RT Patch](https://wiki.linuxfoundation.org/realtime/start)
+- [ELISA Project - Safety Linux](https://elisa.tech/)
