@@ -1,7 +1,12 @@
 # Secure Boot (보안 부팅)
 
 ## 개요
+
 Secure Boot는 시스템 전원 인가부터 애플리케이션 실행까지 모든 소프트웨어의 무결성을 암호학적으로 검증하는 기술입니다. 공격자가 악성 펌웨어를 주입하거나 부트로더를 변조하여 시스템 제어권을 탈취하는 것을 원천 차단합니다. FDA, MDR, ISO/SAE 21434 모두 의료 기기/자동차 소프트웨어 무결성(Software Integrity)을 명시적으로 요구합니다.
+
+Secure Boot가 없는 시스템은 아무리 강력한 통신 보안(TLS, MACsec)을 적용해도, 부팅 과정에서 악성 코드가 주입되면 모든 보안 장치를 우회할 수 있습니다. "신뢰는 하드웨어 ROM에서 시작된다"는 원칙이 핵심입니다.
+
+> **의료 로봇 관점**: 수술 로봇 ECU가 수술 중 원격으로 악성 펌웨어를 주입받는다면, TLS 암호화가 되어있어도 소용없습니다. Secure Boot는 이런 공격을 부팅 단계에서 차단하는 첫 번째 방어선입니다. FDA 2023 가이드라인의 "Secure by Design" 요건에서 소프트웨어 무결성 검증은 핵심 항목이며, UNECE R155 Annex 5의 카테고리 3(업데이트 위협) 대응 방안으로도 Secure Boot가 명시됩니다. `UNECE_R155_R156.md`의 SUMS(R156)와 함께 읽으면 OTA 업데이트 보안 전체 흐름을 이해할 수 있습니다.
 
 ---
 
@@ -349,6 +354,113 @@ FMEA 기반 Secure Boot 요구사항:
   ☐ OTA 업데이트 서명 파이프라인
   ☐ 키 폐기 및 갱신 절차 수립
   ☐ 보안 사고 대응 절차 (SBOM + 패치)
+```
+
+---
+
+## 트러블슈팅
+
+### 문제 1: Secure Boot 활성화 후 부팅 실패
+
+```
+증상: Secure Boot 퓨즈 활성화 후 부팅이 멈춤 (블랙 스크린)
+
+원인 분석:
+  1. 퓨즈에 저장된 공개 키 해시와 BL1 서명에 사용된 키 불일치
+     - 가장 흔한 원인: 퓨즈 프로그래밍 시 잘못된 키 해시 사용
+     - 확인 방법: UART 콘솔 메시지 (HAB failure 또는 Authentication Error)
+
+  2. FIT Image 서명 키와 U-Boot에 임베드된 공개 키 불일치
+     - 확인: U-Boot 콘솔에서 'iminfo $kernel_addr_r'
+
+  3. 부팅 이미지 손상 (플래시 쓰기 오류)
+     - 확인: sha256sum 또는 md5sum으로 이미지 체크섬 검증
+
+해결 전략:
+  # 단계별 Secure Boot 활성화 (권장 절차)
+
+  # 1단계: HAB 설정 (NXP i.MX 예시)
+  #   HAB 비활성 상태에서 서명된 이미지 부팅 확인
+  #   → 서명 검증은 하되, 실패해도 부팅 계속 (Open Configuration)
+  u-boot> hab_status  # HAB 이벤트 확인 (이벤트 없어야 정상)
+
+  # 2단계: 서명 검증 성공 확인 후 퓨즈 프로그래밍
+  u-boot> fuse prog 6 0 0x00000002  # HAB Enable (NXP i.MX8M)
+
+  # 3단계: 활성화 후 재부팅 → 이제 서명 실패 시 부팅 중단
+
+  UART 로그 정상:
+  HAB Authentication: OK
+  Starting kernel...
+
+  UART 로그 오류:
+  HAB Authentication: ERROR 0x33 0x22 (Authentication failed)
+  → 키/서명 불일치 → 오프라인에서 키/이미지 재확인 필요
+```
+
+### 문제 2: dm-verity 루트 파일시스템 마운트 실패
+
+```
+증상: 커널 부팅 중 "dm-verity: ERROR" 또는 루트 파일시스템 마운트 실패
+
+원인 분석:
+  1. Root Hash 불일치
+     - 루트 파티션이 수정되었거나 배드 블록 발생
+     - Root Hash가 커널 파라미터의 값과 다름
+
+  2. dm-verity 해시 트리 파티션이 루트 파티션과 다른 장치
+     - 커널 파라미터의 장치 경로 오류
+
+  3. salt 값 불일치
+     - veritysetup 시 사용한 salt와 커널 파라미터의 salt 다름
+
+진단:
+  # 재부팅 후 Recovery 모드에서 dm-verity 검증
+  veritysetup verify /dev/mmcblk0p2 /dev/mmcblk0p3 \
+    [expected_root_hash]
+
+  # Root Hash 재계산
+  veritysetup format /dev/mmcblk0p2 /dev/mmcblk0p3
+  # → Root hash: [새 값] 출력
+  # → 커널 파라미터의 roothash=과 비교
+
+  # 배드 블록 확인
+  badblocks -v /dev/mmcblk0p2
+
+해결:
+  # OTA로 새 이미지 플래시 (A/B 파티션)
+  # 또는 factory recovery partition 부팅
+```
+
+### 문제 3: IMA 정책에 의한 프로그램 실행 거부
+
+```
+증상: 시스템 부팅 후 일부 바이너리 실행 시 "Permission denied"
+      dmesg에 "integrity: INTEGRITY_FAIL" 메시지
+
+원인 분석:
+  1. 서명되지 않은 바이너리 실행 시도 (IMA appraise 모드)
+     - 개발 서버에서 새로 빌드한 바이너리 배포 시
+     - IMA 서명 없이 바이너리 교체 시
+
+  2. IMA 키가 시스템에 없거나 만료됨
+
+해결:
+  # 방법 1: 새 바이너리에 IMA 서명 (개발 서버에서)
+  evmctl sign --key /secure/ima-key.pem \
+    /opt/robot/bin/new_joint_controller
+
+  # 방법 2: 서명 확인
+  evmctl ima_verify --key /etc/keys/ima-pubkey.pem \
+    /opt/robot/bin/new_joint_controller
+
+  # 방법 3: 일시적 IMA 정책 완화 (개발 환경만!)
+  echo "appraise func=BPRM_CHECK appraise_type=imasig" > /etc/ima/ima-policy
+  # → imasig|modsig에서 imasig로만 변경 (서명 필수는 유지)
+
+  # IMA 거부 로그 확인
+  dmesg | grep "INTEGRITY_FAIL\|appraise"
+  audit2allow -a  # SELinux + IMA 거부 분석 (SELinux 사용 시)
 ```
 
 ---
