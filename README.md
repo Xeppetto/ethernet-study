@@ -54,6 +54,7 @@ v0.26
 - [Software Defined Vehicle (SDV)](./2장_아키텍처_전환/SDV.md) - OTA 보안, IEC 62304 OTA 요구사항, 의료기기 CI/CD 파이프라인, Yocto 빌드
 - [Domain Controller 통합](./2장_아키텍처_전환/Domain_Controller_Integration.md) - 4-도메인 아키텍처, 도메인 간 지연 예산, IVSHMEM IPC, FMEA, 3단계 마이그레이션
 - [Service Oriented Architecture (SOA)](./2장_아키텍처_전환/SOA.md) - SOME/IP 16-byte 헤더 구조, DDS 매핑표, ROS 2 Action Server, 미들웨어 비교
+- [DDS와 RTI Connext DDS](./2장_아키텍처_전환/DDS_RTI_Connext.md) - ISO 26262 ASIL D/IEC 61508 안전 인증, rmw_connextdds, DO-178C/FACE/의료, ara::com DDS 백엔드, 구현체 선택 기준, 원격 수술 특화
 - [AUTOSAR Classic vs Adaptive](./2장_아키텍처_전환/AUTOSAR_Classic_vs_Adaptive.md) - 모듈 비교, 워치독, IEC 62304 플랫폼 적합성, 3단계 마이그레이션 전략
 - [RTOS와 실시간 OS](./2장_아키텍처_전환/RTOS_and_Realtime_OS.md) - Hard/Soft/Firm 실시간 분류, OS 비교, cyclictest WCRT 측정 방법
 - [하드웨어 플랫폼 선정](./2장_아키텍처_전환/Hardware_Platform_Selection.md) - SoC 비교, TSN NIC 선정, TSN 스위치 체크리스트, 메모리·스토리지 가이드
